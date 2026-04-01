@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>rebulk-js - Pattern matching engine for text extraction</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔍</text></svg>">
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{--bg:#0a0c10;--card:#12151c;--input:#1a1f2c;--border:#252a38;--text:#d4d7e0;--dim:#7a7f94;--heading:#eef0f6;--accent:#818cf8;--bright:#a5b4fc;--green:#34d399;--orange:#fb923c;--cyan:#22d3ee;--pink:#f472b6;--code:#0f1219;--r:8px;--rl:14px;--max:960px;--mono:'SF Mono','Fira Code','JetBrains Mono',Menlo,Consolas,monospace}
+    html{scroll-behavior:smooth;scroll-padding-top:70px}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.6;-webkit-font-smoothing:antialiased}
+    a{color:var(--bright);text-decoration:none}a:hover{text-decoration:underline}
+    code,pre{font-family:var(--mono);font-size:.88em}
+    nav{position:sticky;top:0;z-index:100;background:rgba(10,12,16,.82);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);padding:0 24px}
+    nav .inner{max-width:var(--max);margin:0 auto;display:flex;align-items:center;justify-content:space-between;height:56px}
+    nav .logo{font-weight:700;font-size:1.05rem;color:var(--heading);display:flex;align-items:center;gap:8px}
+    nav .links{display:flex;gap:24px}
+    nav .links a{color:var(--dim);font-size:.85rem;font-weight:500;transition:color .15s}
+    nav .links a:hover{color:var(--text);text-decoration:none}
+    .hero{text-align:center;padding:72px 24px 40px;background:radial-gradient(ellipse 70% 50% at 50% 0%,rgba(129,140,248,.12),transparent)}
+    .hero h1{font-size:3.2rem;font-weight:800;letter-spacing:-.04em;color:var(--heading);margin-bottom:14px}
+    .hero h1 span{background:linear-gradient(135deg,var(--accent),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+    .hero .tag{font-size:1.15rem;color:var(--dim);max-width:560px;margin:0 auto 28px;line-height:1.5}
+    .badges{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+    .badge{display:inline-flex;align-items:center;gap:6px;padding:5px 14px;background:var(--card);border:1px solid var(--border);border-radius:999px;font-size:.78rem;color:var(--dim);font-weight:500}
+    .dot{width:7px;height:7px;border-radius:50%}.dot.g{background:var(--green);box-shadow:0 0 6px var(--green)}.dot.o{background:var(--orange);box-shadow:0 0 6px var(--orange)}.dot.c{background:var(--cyan);box-shadow:0 0 6px var(--cyan)}
+    section{max-width:var(--max);margin:0 auto;padding:52px 24px}
+    section h2{font-size:1.4rem;font-weight:700;color:var(--heading);margin-bottom:20px;letter-spacing:-.02em}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;margin-bottom:14px}
+    .card-head{padding:12px 20px;border-bottom:1px solid var(--border);font-size:.8rem;font-weight:600;color:var(--dim);text-transform:uppercase;letter-spacing:.06em}
+    .card pre{padding:16px 20px;margin:0;font-size:.82rem;line-height:1.7;overflow-x:auto}
+    .ck{color:var(--bright)}.cs{color:var(--green)}.cn{color:var(--orange)}.cc{color:#555b72;font-style:italic}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-bottom:24px}
+    .stat{background:var(--card);border:1px solid var(--border);border-radius:var(--rl);padding:24px;text-align:center}
+    .stat .num{font-size:2rem;font-weight:800;letter-spacing:-.03em}
+    .stat .label{font-size:.82rem;color:var(--dim);margin-top:4px}
+    .concepts{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+    .concept{padding:16px;background:var(--input);border-radius:var(--r);border:1px solid transparent;transition:border-color .15s}
+    .concept:hover{border-color:var(--border)}
+    .concept h3{font-size:.9rem;color:var(--accent);margin-bottom:4px;font-family:var(--mono)}
+    .concept p{font-size:.82rem;color:var(--dim);line-height:1.4}
+    footer{max-width:var(--max);margin:0 auto;padding:32px 24px 48px;border-top:1px solid var(--border);text-align:center;font-size:.82rem;color:var(--dim)}
+    @media(max-width:600px){.hero h1{font-size:2.2rem}section{padding:32px 16px}.grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+
+<nav>
+  <div class="inner">
+    <div class="logo">🔍 rebulk-js</div>
+    <div class="links">
+      <a href="#concepts">Concepts</a>
+      <a href="#usage">Usage</a>
+      <a href="#api">API</a>
+      <a href="https://guessit-js.2pu.net">guessit-js</a>
+    </div>
+  </div>
+</nav>
+
+<div class="hero">
+  <h1>rebulk<span>-js</span></h1>
+  <p class="tag">A generic pattern matching engine for rule-based text extraction. TypeScript port of Python <a href="https://github.com/Toilal/rebulk">rebulk</a>.</p>
+  <div class="badges">
+    <span class="badge"><span class="dot g"></span>v3.2.0</span>
+    <span class="badge"><span class="dot o"></span>Zero dependencies</span>
+    <span class="badge"><span class="dot c"></span>TypeScript</span>
+  </div>
+</div>
+
+<section>
+  <div class="grid">
+    <div class="stat"><div class="num" style="color:var(--accent)">14</div><div class="label">Source files</div></div>
+    <div class="stat"><div class="num" style="color:var(--green)">2,772</div><div class="label">Lines of TypeScript</div></div>
+    <div class="stat"><div class="num" style="color:var(--orange)">4</div><div class="label">Pattern types</div></div>
+    <div class="stat"><div class="num" style="color:var(--cyan)">0</div><div class="label">Dependencies</div></div>
+  </div>
+</section>
+
+<section id="concepts">
+  <h2>Core Concepts</h2>
+  <div class="concepts">
+    <div class="concept"><h3>Patterns</h3><p>Regex, string, functional, and chain patterns that produce Match objects from input text.</p></div>
+    <div class="concept"><h3>Matches</h3><p>Container for all matches with positional queries, hole detection, and conflict resolution.</p></div>
+    <div class="concept"><h3>Rules</h3><p>Post-processing rules that add, remove, rename, or modify matches after pattern matching.</p></div>
+    <div class="concept"><h3>Chains</h3><p>Compose multiple patterns into sequential chains with +, *, ? repeaters.</p></div>
+    <div class="concept"><h3>Conflict Solving</h3><p>Automatic and custom resolution of overlapping matches (longer wins by default).</p></div>
+    <div class="concept"><h3>Processors</h3><p>Built-in post-processors for conflict solving, hole detection, and match cleanup.</p></div>
+  </div>
+</section>
+
+<section id="usage">
+  <h2>Quick Start</h2>
+  <div class="card"><div class="card-head">Install</div><pre><span class="cs">npm install rebulk-js</span></pre></div>
+  <div class="card"><div class="card-head">Basic Example</div>
+<pre><span class="ck">import</span> { Rebulk } <span class="ck">from</span> <span class="cs">'rebulk-js'</span>;
+
+<span class="ck">const</span> rebulk = <span class="ck">new</span> Rebulk();
+
+<span class="cc">// Regex pattern with named group + formatter</span>
+rebulk.regex(<span class="cs">'(?&lt;year&gt;\\d{4})'</span>, {
+  name: <span class="cs">'year'</span>,
+  formatter: { year: (v) => parseInt(v, <span class="cn">10</span>) }
+});
+
+<span class="cc">// String patterns (case-insensitive)</span>
+rebulk.stringDefaults({ ignoreCase: <span class="cn">true</span> });
+rebulk.string(<span class="cs">'HD'</span>,   { name: <span class="cs">'quality'</span>, value: <span class="cs">'HD'</span> });
+rebulk.string(<span class="cs">'HDTV'</span>, { name: <span class="cs">'source'</span>,  value: <span class="cs">'HDTV'</span> });
+
+<span class="cc">// Run matching (HDTV wins over HD via conflict resolution)</span>
+<span class="ck">const</span> matches = rebulk.matches(<span class="cs">'Movie.Title.2024.HDTV.mkv'</span>);
+<span class="ck">const</span> result = Object.fromEntries(matches.toDict());
+
+console.log(result);
+<span class="cc">// { year: 2024, source: 'HDTV' }</span></pre>
+  </div>
+
+  <div class="card"><div class="card-head">Chain Patterns</div>
+<pre><span class="ck">const</span> rebulk = <span class="ck">new</span> Rebulk();
+
+<span class="cc">// Chain: match S01E02 pattern with season + episode</span>
+rebulk.chain({ children: <span class="cn">true</span>, privateParent: <span class="cn">true</span> })
+  .regex(<span class="cs">'S(?&lt;season&gt;\\d+)'</span>)
+  .regex(<span class="cs">'E(?&lt;episode&gt;\\d+)'</span>)
+  .repeater(<span class="cs">'+'</span>);  <span class="cc">// one or more episodes</span>
+
+<span class="ck">const</span> matches = rebulk.matches(<span class="cs">'Show.S01E02E03.mkv'</span>);
+<span class="cc">// season: 1, episode: [2, 3]</span></pre>
+  </div>
+
+  <div class="card"><div class="card-head">Custom Rules</div>
+<pre><span class="ck">import</span> { Rebulk, Rule, AppendMatch } <span class="ck">from</span> <span class="cs">'rebulk-js'</span>;
+<span class="ck">import</span> { Match } <span class="ck">from</span> <span class="cs">'rebulk-js/match'</span>;
+
+<span class="ck">class</span> InferType <span class="ck">extends</span> Rule {
+  consequence = AppendMatch;
+
+  when(matches) {
+    <span class="ck">if</span> (matches.named(<span class="cs">'season'</span>).length > <span class="cn">0</span>) {
+      <span class="ck">return</span> <span class="ck">new</span> Match(<span class="cn">0</span>, <span class="cn">0</span>, { name: <span class="cs">'type'</span>, value: <span class="cs">'episode'</span> });
+    }
+    <span class="ck">return</span> <span class="ck">new</span> Match(<span class="cn">0</span>, <span class="cn">0</span>, { name: <span class="cs">'type'</span>, value: <span class="cs">'movie'</span> });
+  }
+}
+
+rebulk.rules(InferType);</pre>
+  </div>
+</section>
+
+<section id="api">
+  <h2>API Reference</h2>
+  <div class="card"><div class="card-head">Rebulk</div>
+<pre style="white-space:pre-wrap;color:var(--dim);line-height:1.8">
+<span style="color:var(--accent)">new Rebulk(options?)</span>
+  Create a new instance. Options: { disabled?: (ctx) => boolean }
+
+<span style="color:var(--accent)">.regex(pattern, options?)</span>
+  Register a regex pattern. Named groups become child matches.
+  Options: name, value, formatter, validator, tags, conflictSolver, ...
+
+<span style="color:var(--accent)">.string(pattern, options?)</span>
+  Register a string match. Options: ignoreCase, value, ...
+
+<span style="color:var(--accent)">.functional(fn, options?)</span>
+  Register fn(input, context) => [start, end][] pattern.
+
+<span style="color:var(--accent)">.chain(options?)</span>
+  Start a chain builder. Chain .regex()/.string() with .repeater('+' | '*' | '?').
+
+<span style="color:var(--accent)">.rules(...RuleClasses)</span>
+  Register post-processing rules. Executed in dependency/priority order.
+
+<span style="color:var(--accent)">.rebulk(other)</span>
+  Compose another Rebulk instance (merge its patterns and rules).
+
+<span style="color:var(--accent)">.matches(input, context?)</span>
+  Run all patterns and rules. Returns a Matches instance.
+
+<span style="color:var(--accent)">.defaults(options)</span>  /  <span style="color:var(--accent)">.regexDefaults(options)</span>  /  <span style="color:var(--accent)">.stringDefaults(options)</span>
+  Set default options for subsequent pattern registrations.
+</pre></div>
+
+  <div class="card"><div class="card-head">Matches</div>
+<pre style="white-space:pre-wrap;color:var(--dim);line-height:1.8">
+<span style="color:var(--accent)">.named(name, predicate?, index?)</span>
+  Get matches by property name. With index returns single match.
+
+<span style="color:var(--accent)">.atIndex(pos, predicate?, index?)</span>
+  Get matches at a specific character position.
+
+<span style="color:var(--accent)">.range(start?, end?, predicate?, index?)</span>
+  Get matches within a character range.
+
+<span style="color:var(--accent)">.previous(match, predicate?, index?)</span>  /  <span style="color:var(--accent)">.next(match, predicate?, index?)</span>
+  Navigate to adjacent matches.
+
+<span style="color:var(--accent)">.holes(start?, end?, options?)</span>
+  Find unmatched regions. Options: { formatter, seps, predicate, index }
+
+<span style="color:var(--accent)">.conflicting(match, predicate?)</span>
+  Find matches overlapping with the given match.
+
+<span style="color:var(--accent)">.toDict(advanced?, singleValue?, enforceList?)</span>
+  Convert all matches to a Map&lt;string, value&gt;.
+
+<span style="color:var(--accent)">.append(match)</span>  /  <span style="color:var(--accent)">.remove(match)</span>
+  Add or remove matches from the container.
+</pre></div>
+</section>
+
+<section>
+  <h2>Used By</h2>
+  <p style="color:var(--dim);margin-bottom:16px">rebulk-js powers the pattern matching in these projects:</p>
+  <div class="grid">
+    <a href="https://guessit-js.2pu.net" style="text-decoration:none">
+      <div class="stat" style="cursor:pointer;transition:border-color .15s;border:1px solid var(--border)">
+        <div class="num" style="color:var(--green);font-size:1.4rem">🎬 guessit-js</div>
+        <div class="label">Media filename metadata extraction</div>
+      </div>
+    </a>
+  </div>
+</section>
+
+<footer>
+  <p>rebulk-js v3.2.0 &mdash; TypeScript port of <a href="https://github.com/Toilal/rebulk">rebulk</a> &mdash; MIT License</p>
+</footer>
+
+</body>
+</html>

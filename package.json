@@ -1,0 +1,46 @@
+{
+  "name": "rebulk-js",
+  "version": "3.2.0",
+  "description": "A generic pattern matching engine for rule-based text extraction. TypeScript port of Python rebulk.",
+  "type": "module",
+  "main": "dist/rebulk-js.cjs",
+  "module": "dist/rebulk-js.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/rebulk-js.js",
+      "require": "./dist/rebulk-js.cjs",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "start": "npx tsx server.ts"
+  },
+  "keywords": [
+    "rebulk",
+    "pattern-matching",
+    "regex",
+    "rule-engine",
+    "text-extraction",
+    "parser",
+    "typescript"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "vite": "^5.2.0",
+    "vite-plugin-dts": "^3.9.0",
+    "vitest": "^1.6.0"
+  }
+}
