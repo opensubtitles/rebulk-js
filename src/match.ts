@@ -551,22 +551,30 @@ export class _BaseMatches {
   previous(match: Match, predicate?: ((m: Match) => boolean) | null, index?: number | null): Match[] | Match | undefined {
     let current = match.start;
     while (current > -1) {
-      const prev = this.ending(current, predicate);
-      if (Array.isArray(prev) && prev.length > 0) return filterIndex(prev, null, index) as Match[] | Match | undefined;
+      // Find ALL matches ending at this position first (without predicate)
+      const endingHere = this.ending(current) as Match[];
+      if (endingHere.length > 0) {
+        // Then apply predicate filter on the nearest group
+        return filterIndex(endingHere, predicate, index) as Match[] | Match | undefined;
+      }
       current--;
     }
-    return filterIndex([], null, index) as Match[] | Match | undefined;
+    return filterIndex([], predicate, index) as Match[] | Match | undefined;
   }
 
   /** Nearest match starting just after (or at) `match.end`. */
   next(match: Match, predicate?: ((m: Match) => boolean) | null, index?: number | null): Match[] | Match | undefined {
     let current = match.end;
     while (current <= this.maxEnd) {
-      const nxt = this.starting(current, predicate);
-      if (Array.isArray(nxt) && nxt.length > 0) return filterIndex(nxt, null, index) as Match[] | Match | undefined;
+      // Find ALL matches starting at this position first (without predicate)
+      const startingHere = this.starting(current) as Match[];
+      if (startingHere.length > 0) {
+        // Then apply predicate filter on the nearest group
+        return filterIndex(startingHere, predicate, index) as Match[] | Match | undefined;
+      }
       current++;
     }
-    return filterIndex([], null, index) as Match[] | Match | undefined;
+    return filterIndex([], predicate, index) as Match[] | Match | undefined;
   }
 
   /** All matches that overlap with `match`. */

@@ -555,7 +555,10 @@ export class FunctionalPattern extends Pattern {
     const isSpan = (v: unknown): v is [number, number] =>
       Array.isArray(v) && v.length === 2 && typeof v[0] === 'number';
 
-    const args_iterable: FunctionalResult[] = Array.isArray(ret) && !isSpan(ret) ? ret as FunctionalResult[] : [ret];
+    const isTuple = (v: unknown): boolean =>
+      Array.isArray(v) && v.length >= 2 && v.length <= 4 && typeof v[0] === 'number' && typeof v[1] === 'number';
+
+    const args_iterable: FunctionalResult[] = Array.isArray(ret) && !isTuple(ret) ? ret as FunctionalResult[] : [ret];
 
     for (const args of args_iterable) {
       if (!args) continue;
