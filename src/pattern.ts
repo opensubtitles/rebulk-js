@@ -4,7 +4,7 @@
  */
 import { defaultFormatter, type FormatterFn } from './formatters.js';
 export type { FormatterFn } from './formatters.js';
-import { ensureList, ensureDict } from './loose.js';
+import { ensureList, ensureDict } from 'rebulk-js';
 import { getFirstDefined } from './utils.js';
 import { alwaysTrue, type ValidatorFn } from './validators.js';
 import { Match, Matches, type MatchOptions, type ConflictSolverFn } from './match.js';
@@ -427,16 +427,10 @@ export class StringPattern extends Pattern {
   get patterns(): string[] { return this._patterns; }
   get matchOptions(): MatchOptions { return this._matchKwargs; }
 
-  toString(): string {
-    return `<StringPattern:(${this._patterns.map(p => `'${p}'`).join(', ')})>`;
-  }
-
   *_match(pattern: string, inputString: string, _context?: Context): Generator<Match> {
     const ignoreCase = (this._opts.ignoreCase ?? false) ||
       (this._opts.flags?.includes('i') ?? false);
-    const start = (this._opts.start as number | undefined) ?? 0;
-    const end = (this._opts.end as number | undefined) ?? undefined;
-    for (const idx of findAll(inputString, pattern, start, end, ignoreCase)) {
+    for (const idx of findAll(inputString, pattern, 0, undefined, ignoreCase)) {
       const match = new Match(idx, idx + pattern.length, {
         ...this._matchKwargs,
         pattern: this,
@@ -561,10 +555,7 @@ export class FunctionalPattern extends Pattern {
     const isSpan = (v: unknown): v is [number, number] =>
       Array.isArray(v) && v.length === 2 && typeof v[0] === 'number';
 
-    const isTuple = (v: unknown): boolean =>
-      Array.isArray(v) && v.length >= 2 && v.length <= 4 && typeof v[0] === 'number' && typeof v[1] === 'number';
-
-    const args_iterable: FunctionalResult[] = Array.isArray(ret) && !isTuple(ret) ? ret as FunctionalResult[] : [ret];
+    const args_iterable: FunctionalResult[] = Array.isArray(ret) && !isSpan(ret) ? ret as FunctionalResult[] : [ret];
 
     for (const args of args_iterable) {
       if (!args) continue;

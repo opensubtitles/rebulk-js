@@ -458,20 +458,6 @@ export class _BaseMatches {
     }
   }
 
-  /** Remove all matches and clear caches. */
-  clear(): void {
-    while (this._delegate.length > 0) {
-      const m = this._delegate.pop()!;
-      this._removeMatch(m);
-    }
-  }
-
-  /** Insert a match at a given index position. */
-  insert(index: number, match: Match): void {
-    this._delegate.splice(index, 0, match);
-    this._addMatch(match);
-  }
-
   includes(match: Match): boolean {
     return this._delegate.some((m) => m === match);
   }
@@ -482,41 +468,6 @@ export class _BaseMatches {
 
   get(index: number): Match {
     return this._delegate[index];
-  }
-
-  /**
-   * Get a slice of matches as a new Matches-like container.
-   * Mirrors Python `matches[start:end]`.
-   */
-  slice(start: number, end?: number): Match[] {
-    return this._delegate.slice(start, end);
-  }
-
-  /**
-   * Set a single element by index.
-   * Mirrors Python `matches[index] = match`.
-   */
-  setAt(index: number, match: Match): void {
-    this._delegate[index] = match;
-    this._addMatch(match);
-  }
-
-  /**
-   * Replace a slice with new matches.
-   * Mirrors Python `matches[start:end] = [match1, match2, ...]`.
-   */
-  setSlice(start: number, end: number, ...matches: Match[]): void {
-    this._delegate.splice(start, end - start, ...matches);
-    for (const m of matches) this._addMatch(m);
-  }
-
-  /**
-   * Delete a slice of matches.
-   * Mirrors Python `del matches[start:end]`.
-   */
-  deleteSlice(start: number, end: number): void {
-    const removed = this._delegate.splice(start, end - start);
-    for (const m of removed) this._removeMatch(m);
   }
 
   sort(): Match[] {
@@ -600,30 +551,22 @@ export class _BaseMatches {
   previous(match: Match, predicate?: ((m: Match) => boolean) | null, index?: number | null): Match[] | Match | undefined {
     let current = match.start;
     while (current > -1) {
-      // Find ALL matches ending at this position first (without predicate)
-      const endingHere = this.ending(current) as Match[];
-      if (endingHere.length > 0) {
-        // Then apply predicate filter on the nearest group
-        return filterIndex(endingHere, predicate, index) as Match[] | Match | undefined;
-      }
+      const prev = this.ending(current, predicate);
+      if (Array.isArray(prev) && prev.length > 0) return filterIndex(prev, null, index) as Match[] | Match | undefined;
       current--;
     }
-    return filterIndex([], predicate, index) as Match[] | Match | undefined;
+    return filterIndex([], null, index) as Match[] | Match | undefined;
   }
 
   /** Nearest match starting just after (or at) `match.end`. */
   next(match: Match, predicate?: ((m: Match) => boolean) | null, index?: number | null): Match[] | Match | undefined {
     let current = match.end;
     while (current <= this.maxEnd) {
-      // Find ALL matches starting at this position first (without predicate)
-      const startingHere = this.starting(current) as Match[];
-      if (startingHere.length > 0) {
-        // Then apply predicate filter on the nearest group
-        return filterIndex(startingHere, predicate, index) as Match[] | Match | undefined;
-      }
+      const nxt = this.starting(current, predicate);
+      if (Array.isArray(nxt) && nxt.length > 0) return filterIndex(nxt, null, index) as Match[] | Match | undefined;
       current++;
     }
-    return filterIndex([], predicate, index) as Match[] | Match | undefined;
+    return filterIndex([], null, index) as Match[] | Match | undefined;
   }
 
   /** All matches that overlap with `match`. */
@@ -777,34 +720,20 @@ export class _BaseMatches {
       matchArr.push(match);
       ret.matches.set(match.name ?? '', matchArr);
 
-      // Track values list (use value equality for dedup, matching Python)
+      // Track values list
       if (!enforceList) {
         const valArr = ret.valuesList.get(match.name ?? '') ?? [];
-        const alreadyIn = valArr.some(x => {
-          if (x === val) return true;
-          if (details && x instanceof Match && val instanceof Match) return (x as Match).equals(val as Match);
-          return false;
-        });
-        if (!alreadyIn) valArr.push(val);
+        if (!valArr.includes(val)) valArr.push(val);
         ret.valuesList.set(match.name ?? '', valArr);
       }
-
-      // Python uses Match.__eq__ for dedup (value equality), not identity.
-      // When details=true, val is a Match — compare using .equals().
-      const valEqual = (a: unknown, b: unknown): boolean => {
-        if (a === b) return true;
-        if (details && a instanceof Match && b instanceof Match) return a.equals(b);
-        return false;
-      };
-      const valIncludes = (arr: unknown[], v: unknown): boolean => arr.some(x => valEqual(x, v));
 
       const existing = ret.get(match.name ?? '');
       if (existing !== undefined) {
         if (!firstValue) {
           if (Array.isArray(existing)) {
-            if (!valIncludes(existing, val)) existing.push(val);
+            if (!existing.includes(val)) existing.push(val);
           } else {
-            if (!valEqual(existing, val)) ret.set(match.name!, [existing, val]);
+            if (existing !== val) ret.set(match.name!, [existing, val]);
           }
         }
       } else {

@@ -1,6 +1,6 @@
 {
   "name": "rebulk-js",
-  "version": "3.2.1",
+  "version": "3.2.2",
   "description": "A generic pattern matching engine for rule-based text extraction. TypeScript port of Python rebulk.",
   "type": "module",
   "main": "dist/rebulk-js.cjs",

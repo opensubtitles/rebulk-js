@@ -14,33 +14,6 @@ export class CyclicDependency extends Error {
 }
 
 /**
- * Returns a single flat list of dependencies in topological order.
- * For each set yielded by toposort(), items are optionally sorted
- * and appended to the result.
- */
-export function toposortFlatten<T>(data: Map<T, Set<T>>, sort: boolean | ((a: T, b: T) => number) = true): T[] {
-  const result: T[] = [];
-  for (const d of toposort(data)) {
-    const arr = [...d];
-    if (sort) {
-      if (typeof sort === 'function') {
-        arr.sort(sort);
-      } else {
-        // Default sort — use numeric comparison if all elements are numbers,
-        // otherwise use default JS sort (matching Python's sorted() behavior).
-        if (arr.every(x => typeof x === 'number')) {
-          arr.sort((a, b) => (a as number) - (b as number));
-        } else {
-          arr.sort();
-        }
-      }
-    }
-    result.push(...arr);
-  }
-  return result;
-}
-
-/**
  * Perform a topological sort.
  * @param data  Map where each key depends on the values in its Set.
  * @yields Sets of items with no remaining dependencies, in order.

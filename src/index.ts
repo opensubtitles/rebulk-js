@@ -1,1 +1,15 @@
 export * from './rebulk.js';
+export * from './builder.js';
+export { Match, Matches, Markers, MatchesDict, type MatchOptions } from './match.js';
+export type { _BaseMatches } from './match.js';
+export { RePattern, StringPattern, FunctionalPattern, BasePattern, filterMatchKwargs } from './pattern.js';
+export type { Context, PatternOptions } from './pattern.js';
+export { Chain, ChainPart } from './chain.js';
+export { Rule, CustomRule, Rules, executeRule, Consequence, Condition } from './rules.js';
+export { RemoveMatch, AppendMatch, RenameMatch, AppendTags, RemoveTags } from './rules.js';
+export { ConflictSolver, PrivateRemover, PRE_PROCESS, POST_PROCESS } from './processors.js';
+export { findAll, extendSafe, isIterable, IdentitySet } from './utils.js';
+export { formatters, defaultFormatter } from './formatters.js';
+export { charsBefore, charsAfter, charsSurround, alwaysTrue } from './validators.js';
+export { toposort } from './toposort.js';
+export { ensureList, ensureDict } from './loose.js';
