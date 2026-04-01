@@ -121,7 +121,7 @@ export {
 export { ConflictSolver, PrivateRemover } from './processors.js';
 export { alwaysTrue, charsBefore, charsAfter, charsSurround } from './validators.js';
 export { defaultFormatter, formatters } from './formatters.js';
-export { toposort } from './toposort.js';
+export { toposort, toposortFlatten } from './toposort.js';
 export { findAll, isIterable, extendSafe, IdentitySet } from './utils.js';
 export type { PatternOptions, Context, DisabledFn, FormatterFn as FormatterFnType } from './pattern.js';
 export type { ValidatorFn } from './validators.js';

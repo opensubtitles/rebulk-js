@@ -427,10 +427,16 @@ export class StringPattern extends Pattern {
   get patterns(): string[] { return this._patterns; }
   get matchOptions(): MatchOptions { return this._matchKwargs; }
 
+  toString(): string {
+    return `<StringPattern:(${this._patterns.map(p => `'${p}'`).join(', ')})>`;
+  }
+
   *_match(pattern: string, inputString: string, _context?: Context): Generator<Match> {
     const ignoreCase = (this._opts.ignoreCase ?? false) ||
       (this._opts.flags?.includes('i') ?? false);
-    for (const idx of findAll(inputString, pattern, 0, undefined, ignoreCase)) {
+    const start = (this._opts.start as number | undefined) ?? 0;
+    const end = (this._opts.end as number | undefined) ?? undefined;
+    for (const idx of findAll(inputString, pattern, start, end, ignoreCase)) {
       const match = new Match(idx, idx + pattern.length, {
         ...this._matchKwargs,
         pattern: this,

@@ -1,6 +1,6 @@
 {
   "name": "rebulk-js",
-  "version": "3.2.0",
+  "version": "3.2.1",
   "description": "A generic pattern matching engine for rule-based text extraction. TypeScript port of Python rebulk.",
   "type": "module",
   "main": "dist/rebulk-js.cjs",
@@ -14,16 +14,21 @@
     }
   },
   "files": [
-    "dist",
+    "dist/*.js",
+    "dist/*.cjs",
+    "dist/*.map",
+    "dist/*.d.ts",
     "src",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "prepublishOnly": "npm run build && npm test",
     "start": "npx tsx server.ts"
   },
   "keywords": [
@@ -33,10 +38,25 @@
     "rule-engine",
     "text-extraction",
     "parser",
-    "typescript"
+    "typescript",
+    "guessit",
+    "media",
+    "filename"
   ],
-  "author": "",
+  "author": "opensubtitles",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/opensubtitles/rebulk-js"
+  },
+  "homepage": "https://github.com/opensubtitles/rebulk-js#readme",
+  "bugs": {
+    "url": "https://github.com/opensubtitles/rebulk-js/issues"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "sideEffects": false,
   "devDependencies": {
     "@types/node": "^25.5.0",
     "typescript": "^5.4.0",

@@ -12,10 +12,7 @@ describe('TestMatchClass', () => {
     expect(match1.toString()).toBe('<es:[1,3]>');
 
     const match2 = new Match(0, 4, { value: 'test', private: true, name: 'abc', tags: ['one', 'two'] });
-    expect(match2.toString()).toContain('+private');
-    expect(match2.toString()).toContain('+name=abc');
-    expect(match2.toString()).toContain('one');
-    expect(match2.toString()).toContain('two');
+    expect(match2.toString()).toBe('<test:[0,4]+private+name=abc+tags=["one","two"]>');
   });
 
   it('test_names', () => {
@@ -132,6 +129,15 @@ describe('TestMatchesClass', () => {
     expect(matches.length).toBe(3);
     expect((matches.starting(0) as Match[]).length).toBe(0);
     expect((matches.ending(2) as Match[]).length).toBe(0);
+
+    matches.clear();
+    expect(matches.length).toBe(0);
+    expect((matches.starting(0) as Match[]).length).toBe(0);
+    expect((matches.starting(2) as Match[]).length).toBe(0);
+    expect((matches.starting(3) as Match[]).length).toBe(0);
+    expect((matches.ending(2) as Match[]).length).toBe(0);
+    expect((matches.ending(3) as Match[]).length).toBe(0);
+    expect((matches.ending(4) as Match[]).length).toBe(0);
   });
 
   it('test_constructor', () => {
@@ -153,10 +159,63 @@ describe('TestMatchesClass', () => {
     expect(matches.inputString).toBe('test');
   });
 
-  // Note: test_get_slices, test_remove_slices, test_set_slices, test_set_index
-  // are Python-specific (Python Matches supports __getitem__, __delitem__, __setitem__).
-  // JS Matches doesn't have array-like slice/index assignment. These are documented
-  // as intentional API differences — JS uses .get()/.at()/.remove()/.append() instead.
+  it('test_get_slices', () => {
+    const matches = new Matches();
+    matches.append(match1);
+    matches.append(match2);
+    matches.append(match3);
+    matches.append(match4);
+
+    const sliceMatches = matches.slice(1, 3);
+
+    expect(sliceMatches.length).toBe(2);
+    expect(sliceMatches[0]).toBe(match2);
+    expect(sliceMatches[1]).toBe(match3);
+  });
+
+  it('test_remove_slices', () => {
+    const matches = new Matches();
+    matches.append(match1);
+    matches.append(match2);
+    matches.append(match3);
+    matches.append(match4);
+
+    matches.deleteSlice(1, 3);
+
+    expect(matches.length).toBe(2);
+    expect(matches.get(0)).toBe(match1);
+    expect(matches.get(1)).toBe(match4);
+  });
+
+  it('test_set_slices', () => {
+    const matches = new Matches();
+    matches.append(match1);
+    matches.append(match2);
+    matches.append(match3);
+    matches.append(match4);
+
+    matches.setSlice(1, 3, match1, match4);
+
+    expect(matches.length).toBe(4);
+    expect(matches.get(0)).toBe(match1);
+    expect(matches.get(1)).toBe(match1);
+    expect(matches.get(2)).toBe(match4);
+    expect(matches.get(3)).toBe(match4);
+  });
+
+  it('test_set_index', () => {
+    const matches = new Matches();
+    matches.append(match1);
+    matches.append(match2);
+    matches.append(match3);
+
+    matches.setAt(1, match4);
+
+    expect(matches.length).toBe(3);
+    expect(matches.get(0)).toBe(match1);
+    expect(matches.get(1)).toBe(match4);
+    expect(matches.get(2)).toBe(match3);
+  });
 
   it('test_crop', () => {
     const inputString = 'abcdefghijklmnopqrstuvwxyz';
@@ -323,28 +382,26 @@ describe('TestMatches', () => {
     expect(enforced.get('words')).toEqual(['One', 'Two', 'Three']);
 
     const detailed = matches.toDict(true);
-    // In details mode, "1" has two matches from StringPattern and RePattern (both value "One")
-    const d1 = detailed.get('1');
-    if (Array.isArray(d1)) {
-      expect(d1[0].value).toBe('One');
-    } else {
-      expect((d1 as Match).value).toBe('One');
-    }
+    // "1" has two matches (StringPattern + RePattern) both at [0,3] with value "One"
+    // Python deduplicates by Match.__eq__ (same span+value+name), so single Match
+    expect((detailed.get('1') as Match).value).toBe('One');
 
     const d2 = detailed.get('2');
     expect(Array.isArray(d2)).toBe(true);
+    expect((d2 as Match[]).length).toBe(2);
+    expect((d2 as Match[])[0].value).toBe('Two');
+    expect((d2 as Match[])[1].value).toBe('Two');
 
-    const d3 = detailed.get('3');
-    if (Array.isArray(d3)) {
-      expect(d3[0].value).toBe('Three');
-    } else {
-      expect((d3 as Match).value).toBe('Three');
-    }
-    expect((Array.isArray(detailed.get('3bis')) ? (detailed.get('3bis') as Match[])[0] : detailed.get('3bis') as Match).value).toBe('Three');
+    expect((detailed.get('3') as Match).value).toBe('Three');
+    expect((detailed.get('3bis') as Match).value).toBe('Three');
 
     const words = detailed.get('words');
     expect(Array.isArray(words)).toBe(true);
-    expect((words as Match[]).length).toBeGreaterThanOrEqual(4);
+    expect((words as Match[]).length).toBe(4);
+    expect((words as Match[])[0].value).toBe('One');
+    expect((words as Match[])[1].value).toBe('Two');
+    expect((words as Match[])[2].value).toBe('Two');
+    expect((words as Match[])[3].value).toBe('Three');
   });
 
   it('test_chains', () => {

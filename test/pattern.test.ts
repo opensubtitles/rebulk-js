@@ -22,19 +22,14 @@ describe('TestStringPattern', () => {
 
   it('test_repr', () => {
     const pattern = new StringPattern({}, 'Celtic');
-    // StringPattern doesn't have a toString like Python, but we can verify it exists
-    expect(pattern).toBeInstanceOf(StringPattern);
+    expect(pattern.toString()).toBe("<StringPattern:('Celtic')>");
   });
 
   it('test_start_end_kwargs', () => {
-    // Note: Python StringPattern supports start/end kwargs to limit search range.
-    // The JS port doesn't support start/end on StringPattern directly — this is
-    // a documented API difference. The functionality can be achieved by slicing the input.
-    const pattern = new StringPattern({}, 'Celtic');
+    // "Abyssinian" starts at index 3. With start=20,end=40 it's outside the range.
+    const pattern = new StringPattern({ start: 20, end: 40 }, 'Abyssinian');
     const matches = pattern.matches(INPUT_STRING) as Match[];
-    expect(matches.length).toBe(1);
-    // Verify the match is found at the expected position
-    expect(matches[0].start).toBe(28);
+    expect(matches.length).toBe(0);
   });
 
   it('test_ignore_case', () => {
@@ -501,18 +496,18 @@ describe('TestFormatter', () => {
   });
 
   it('test_repeated_captures', () => {
-    // Python's regex module supports repeated captures; JS RegExp does not.
-    // JS only captures the LAST match of a repeated group.
-    // This is a documented behavioral difference.
+    // Python has two code paths:
+    //   if REGEX_ENABLED: 5 children (regex module captures all repeats)
+    //   else: 2 children (re module only captures last repeat)
+    // JS RegExp behaves like Python's `re` module (no repeated capture support).
+    // This matches Python's `REGEX_ENABLED=False` / `repeated_captures=False` path exactly.
     const pattern = new RePattern({}, '\\[(\\d+)\\](?:-(\\d+))*');
     const matches = pattern.matches('[02]-03-04-05-06') as Match[];
     expect(matches.length).toBe(1);
 
     const match = matches[0];
-    // JS captures only first group and LAST repeated capture
     expect(match.children.length).toBe(2);
-    expect(match.children.get(0).value).toBe('02');
-    expect(match.children.get(1).value).toBe('06');
+    expect(match.children.toArray().map(c => c.value)).toEqual(['02', '06']);
   });
 
   it('test_single_functional', () => {

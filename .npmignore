@@ -1,0 +1,9 @@
+test/
+public/
+server.ts
+vite.config.ts
+vitest.config.ts
+tsconfig.json
+CLAUDE.md
+.gitignore
+node_modules/

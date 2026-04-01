@@ -149,10 +149,14 @@ describe('Rules Engine', () => {
     expect(matches.get(1).equals(new Match(3, 4))).toBe(true);
   });
 
-  // Note: test_rules_duplicates tests that Python raises ValueError when duplicate
-  // rule instances of the same class are added. The JS port doesn't enforce this
-  // restriction — it deduplicates silently via Rules.extend(). This is a documented
-  // behavioral difference.
+  it('test_rules_duplicates', () => {
+    const matches = new Matches([new Match(1, 2)]);
+    const rules = new Rules(Rule1, Rule1);
+
+    expect(() => {
+      rules.executeAllRules(matches, {});
+    }).toThrow(/Duplicate class rules/);
+  });
 
   it('test_rule_repr', () => {
     expect(new Rule0().toString()).toBe('<Rule0>');
@@ -160,9 +164,16 @@ describe('Rules Engine', () => {
     expect(new Rule2().toString()).toBe('<Rule2>');
   });
 
-  // Note: test_rule_module tests loading rules from a Python module.
-  // JS doesn't have the same module-level class discovery. Rules are passed
-  // explicitly as classes/instances. This is a documented API difference.
+  it('test_rule_module - load all rules from a set', () => {
+    // Python loads rules from a module. JS equivalent: pass all rule classes.
+    // rules_module has Rule0, Rule1, Rule2, Rule3 — dependency chain.
+    // Loading all 4: Rule3 runs (appends), Rule2 runs (appends), Rule1 runs (clears), Rule0 runs (appends)
+    const rules = new Rules(Rule0, Rule1, Rule2, Rule3);
+    const matches = new Matches([new Match(1, 2)]);
+    rules.executeAllRules(matches, {});
+
+    expect(matches.length).toBe(1);
+  });
 
   it('test_rule_when', () => {
     let matches = new Matches([new Match(1, 2)]);

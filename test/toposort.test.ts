@@ -2,7 +2,7 @@
  * Topological sort tests — port of rebulk/test/test_toposort.py
  */
 import { describe, it, expect } from 'vitest';
-import { toposort, CyclicDependency } from '../src/toposort.js';
+import { toposort, toposortFlatten, CyclicDependency } from '../src/toposort.js';
 
 describe('Toposort', () => {
   it('test_simple', () => {
@@ -85,10 +85,34 @@ describe('Toposort', () => {
     }
   });
 
-  // Note: Python's test_sort_flatten tests toposort_flatten() which flattens
-  // the sorted sets into a single list. The JS port doesn't export toposort_flatten
-  // as it's not used by the rebulk engine — only toposort() is needed internally.
-  // This is a documented API difference.
+  it('test_sort_flatten', () => {
+    const data = new Map<number, Set<number>>([
+      [2, new Set([11])],
+      [9, new Set([11, 8])],
+      [10, new Set([11, 3])],
+      [11, new Set([7, 5])],
+      [8, new Set([7, 3, 8])],
+    ]);
+
+    const expected = [new Set([3, 5, 7]), new Set([8, 11]), new Set([2, 9, 10])];
+    expect([...toposort(data)]).toEqual(expected);
+
+    // Sorted flatten
+    const sortedResult: number[] = [];
+    for (const item of expected) {
+      sortedResult.push(...[...item].sort((a, b) => a - b));
+    }
+    expect(toposortFlatten(data)).toEqual(sortedResult);
+
+    // Unsorted flatten — verify the groups match
+    const unsorted = toposortFlatten(data, false);
+    const groups = [
+      new Set(unsorted.slice(0, 3)),
+      new Set(unsorted.slice(3, 5)),
+      new Set(unsorted.slice(5, 8)),
+    ];
+    expect(groups).toEqual(expected);
+  });
 
   it('test_input_not_modified_when_cycle_error', () => {
     const data = new Map<number, Set<number>>([

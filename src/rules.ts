@@ -280,7 +280,11 @@ export function toposortRules(rules: CustomRule[]): Set<CustomRule>[] {
   const classToDep = new Map<typeof CustomRule, CustomRule>();
 
   for (const rule of rules) {
-    classToDep.set(rule.constructor as typeof CustomRule, rule);
+    const cls = rule.constructor as typeof CustomRule;
+    if (classToDep.has(cls)) {
+      throw new Error(`Duplicate class rules are not allowed: ${cls.name}`);
+    }
+    classToDep.set(cls, rule);
   }
 
   for (const rule of rules) {
