@@ -187,5 +187,13 @@ describe('ConflictSolver', () => {
     matches.extend(re2.matches(inputString) as Match[]);
     executeRule(new ConflictSolver(), matches, {});
     expect(matches.length).toBe(2);
+
+    // Symmetric: shorter match has conflict_solver returning null (reversed order)
+    re1 = new StringPattern({ conflictSolver: () => null }, '34567');
+    re2 = new StringPattern({}, '2345678');
+    matches = new Matches(re2.matches(inputString) as Match[]);
+    matches.extend(re1.matches(inputString) as Match[]);
+    executeRule(new ConflictSolver(), matches, {});
+    expect(matches.length).toBe(2);
   });
 });

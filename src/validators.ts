@@ -36,3 +36,10 @@ export function charsAfter(chars: string, match: Match): boolean {
 export function charsSurround(chars: string, match: Match): boolean {
   return charsBefore(chars, match) && charsAfter(chars, match);
 }
+
+/**
+ * Chain multiple validators into one. All must pass for the match to be valid.
+ */
+export function validators(...chainedValidators: ValidatorFn[]): ValidatorFn {
+  return (match: Match) => chainedValidators.every(v => v(match));
+}

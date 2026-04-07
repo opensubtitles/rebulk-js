@@ -18,6 +18,21 @@ export class CyclicDependency extends Error {
  * @param data  Map where each key depends on the values in its Set.
  * @yields Sets of items with no remaining dependencies, in order.
  */
+/**
+ * Flatten a topological sort into a single array.
+ * @param data  Map where each key depends on the values in its Set.
+ * @param sort  If true (default), sort each group before appending.
+ */
+export function toposortFlatten<T>(data: Map<T, Set<T>>, sort = true): T[] {
+  const result: T[] = [];
+  for (const group of toposort(data)) {
+    const items = [...group];
+    if (sort) items.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+    result.push(...items);
+  }
+  return result;
+}
+
 export function* toposort<T>(data: Map<T, Set<T>>): Generator<Set<T>> {
   if (data.size === 0) return;
 

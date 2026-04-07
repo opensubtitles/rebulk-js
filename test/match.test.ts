@@ -9,10 +9,10 @@ import { formatters } from '../src/formatters.js';
 describe('TestMatchClass', () => {
   it('test_repr', () => {
     const match1 = new Match(1, 3, { value: 'es' });
-    expect(match1.toString()).toBe('<es:[1,3]>');
+    expect(match1.toString()).toBe('<es:(1, 3)>');
 
     const match2 = new Match(0, 4, { value: 'test', private: true, name: 'abc', tags: ['one', 'two'] });
-    expect(match2.toString()).toBe('<test:[0,4]+private+name=abc+tags=["one","two"]>');
+    expect(match2.toString()).toBe('<test:(0, 4)+private+name=abc+tags=["one","two"]>');
   });
 
   it('test_names', () => {
@@ -59,6 +59,34 @@ describe('TestMatchClass', () => {
     const match1 = new Match(1, 3);
     match1.value = 'test';
     expect(match1.value).toBe('test');
+  });
+
+  it('test_value_falsy', () => {
+    // Python: `if self._value:` — 0, false, '' are falsy, so they fall through
+    // to formatter/raw. This matches Python behavior.
+    const match = new Match(1, 3, { inputString: 'hello world' });
+    match.value = 0;
+    // 0 is falsy → falls through to raw
+    expect(match.value).toBe('el');
+
+    match.value = '';
+    // '' is falsy → falls through to raw
+    expect(match.value).toBe('el');
+
+    match.value = false;
+    // false is falsy → falls through to raw
+    expect(match.value).toBe('el');
+
+    match.value = null;
+    // null is falsy → falls through to raw
+    expect(match.value).toBe('el');
+
+    // Non-falsy values work normally
+    match.value = 'custom';
+    expect(match.value).toBe('custom');
+
+    match.value = 42;
+    expect(match.value).toBe(42);
   });
 });
 
@@ -130,6 +158,31 @@ describe('TestMatchesClass', () => {
     expect((matches.starting(0) as Match[]).length).toBe(0);
     expect((matches.ending(2) as Match[]).length).toBe(0);
 
+    // Test range() — Python has 5 range assertions
+    matches.clear();
+    matches.append(match1);
+    matches.append(match2);
+    matches.append(match3);
+    matches.append(match4);
+
+    let rangeResult = matches.range() as Match[];
+    expect(rangeResult.length).toBe(4);
+
+    rangeResult = matches.range(0) as Match[];
+    expect(rangeResult.length).toBe(4);
+
+    rangeResult = matches.range(0, 3) as Match[];
+    expect(rangeResult.length).toBe(3); // match1[0,2], match2[2,3], match4[2,4]
+
+    rangeResult = matches.range(2, 3) as Match[];
+    expect(rangeResult.length).toBe(2); // match2[2,3], match4[2,4]
+
+    rangeResult = matches.range(3, 4) as Match[];
+    expect(rangeResult.length).toBe(2); // match3[3,4], match4[2,4]
+
+    // Test repr
+    expect(matches.toString()).toBeTruthy();
+
     matches.clear();
     expect(matches.length).toBe(0);
     expect((matches.starting(0) as Match[]).length).toBe(0);
@@ -157,6 +210,13 @@ describe('TestMatchesClass', () => {
 
     expect(matches.length).toBe(4);
     expect(matches.inputString).toBe('test');
+    // Python: all starting/ending lookups work after constructor
+    expect((matches.starting(0) as Match[]).length).toBe(1);
+    expect((matches.ending(2) as Match[]).length).toBe(1);
+    expect((matches.starting(2) as Match[]).length).toBe(2);
+    expect((matches.starting(3) as Match[]).length).toBe(1);
+    expect((matches.ending(3) as Match[]).length).toBe(1);
+    expect((matches.ending(4) as Match[]).length).toBe(2);
   });
 
   it('test_get_slices', () => {
@@ -168,9 +228,10 @@ describe('TestMatchesClass', () => {
 
     const sliceMatches = matches.slice(1, 3);
 
+    expect(sliceMatches).toBeInstanceOf(Matches);
     expect(sliceMatches.length).toBe(2);
-    expect(sliceMatches[0]).toBe(match2);
-    expect(sliceMatches[1]).toBe(match3);
+    expect(sliceMatches.get(0)).toBe(match2);
+    expect(sliceMatches.get(1)).toBe(match3);
   });
 
   it('test_remove_slices', () => {
@@ -296,22 +357,35 @@ describe('TestMatches', () => {
 
     selection = matches.starting(0, (m: Match) => m.tags.includes('str')) as Match[];
     expect(selection.length).toBe(1);
+    expect(selection[0].pattern!.name).toBe('1-str');
 
     selection = matches.ending(7, (m: Match) => m.tags.includes('str')) as Match[];
     expect(selection.length).toBe(1);
+    expect(selection[0].pattern!.name).toBe('2-str');
 
     const twoStr = (matches.named('2-str') as Match[])[0];
     selection = matches.previous(twoStr) as Match[];
     expect(selection.length).toBe(2);
+    expect(selection[0].pattern!.name).toBe('1-str');
+    expect(selection[1].pattern!.name).toBe('1-re');
 
     selection = matches.previous(twoStr, (m: Match) => m.tags.includes('str')) as Match[];
     expect(selection.length).toBe(1);
+    expect(selection[0].pattern!.name).toBe('1-str');
 
     selection = matches.next(twoStr) as Match[];
     expect(selection.length).toBe(2);
+    expect(selection[0].pattern!.name).toBe('3-str');
+    expect(selection[1].pattern!.name).toBe('3-re');
+
+    // Python: next with index=0 and predicate
+    const nextSingle = matches.next(twoStr, (m: Match) => m.tags.includes('re'), 0) as Match;
+    expect(nextSingle).toBeDefined();
+    expect(nextSingle.pattern!.name).toBe('3-re');
 
     selection = matches.next(twoStr, (m: Match) => m.tags.includes('re')) as Match[];
     expect(selection.length).toBe(1);
+    expect(selection[0].pattern!.name).toBe('3-re');
 
     // Named with predicate that excludes
     selection = matches.named('2-str', (m: Match) => m.tags.includes('re')) as Match[];
@@ -321,6 +395,11 @@ describe('TestMatches', () => {
     const single = matches.named('2-re', (m: Match) => m.tags.includes('re'), 0) as Match;
     expect(single).toBeDefined();
     expect(single.name).toBe('2-re');
+
+    // Python: named with predicate returning list
+    selection = matches.named('2-re', (m: Match) => m.tags.includes('re')) as Match[];
+    expect(selection.length).toBe(1);
+    expect(selection[0].name).toBe('2-re');
 
     // index out of range
     const none = matches.named('2-re', (m: Match) => m.tags.includes('re'), 1000);
@@ -332,6 +411,7 @@ describe('TestMatches', () => {
 
     const match = new Match(0, 10, { inputString, formatter: (s: string) => s + s });
 
+    // Python: match.value == match.raw * 2
     expect(match.value).toBe(inputString + inputString);
     expect(match.raw).toBe(inputString);
 
@@ -339,6 +419,14 @@ describe('TestMatches', () => {
     match.rawStart = 1;
 
     expect(match.raw).toBe(inputString.slice(1, 9));
+    // Python: value uses formatter on the new raw
+    expect(match.value).toBe(inputString.slice(1, 9) + inputString.slice(1, 9));
+
+    // Python: reset raw_end and raw_start back, value goes back to original
+    match.rawEnd = undefined as any;
+    match.rawStart = undefined as any;
+    expect(match.value).toBe(inputString + inputString);
+    expect(match.raw).toBe(inputString);
   });
 
   it('test_formatter_chain', () => {
@@ -402,6 +490,19 @@ describe('TestMatches', () => {
     expect((words as Match[])[1].value).toBe('Two');
     expect((words as Match[])[2].value).toBe('Two');
     expect((words as Match[])[3].value).toBe('Three');
+
+    // Python: values_list in details mode also has Match objects
+    const vl2 = detailed.valuesList.get('2') as Match[];
+    expect(vl2.length).toBe(2);
+    expect(vl2[0].value).toBe('Two');
+    expect(vl2[1].value).toBe('Two');
+
+    const vlWords = detailed.valuesList.get('words') as Match[];
+    expect(vlWords.length).toBe(4);
+    expect(vlWords[0].value).toBe('One');
+    expect(vlWords[1].value).toBe('Two');
+    expect(vlWords[2].value).toBe('Two');
+    expect(vlWords[3].value).toBe('Three');
   });
 
   it('test_chains', () => {
@@ -439,6 +540,20 @@ describe('TestMatches', () => {
     chainAfter = matches.chainAfter(cEnd, ' ,', undefined, (m: Match) => m.name === 'digit') as Match[];
     expect(chainAfter.length).toBe(2);
     expect(chainAfter.map(m => m.value)).toEqual(['70', '80']);
+
+    // Python: chain_before/chain_after accept Match objects (using .start/.end)
+    const bMatch = new Match(bStart, bEnd);
+    chainBefore = matches.chainBefore(bMatch, ' ,', 0, (m: Match) => m.name === 'word') as Match[];
+    expect(chainBefore.length).toBe(1);
+    expect(chainBefore[0].value).toBe('wordA');
+
+    chainAfter = matches.chainAfter(bMatch, ' ,', undefined, (m: Match) => m.name === 'word') as Match[];
+    expect(chainAfter.length).toBe(1);
+    expect(chainAfter[0].value).toBe('wordC');
+
+    // Python: chain_after with end parameter
+    chainAfter = matches.chainAfter(cEnd, ' ,', 10000, (m: Match) => m.name === 'digit') as Match[];
+    expect(chainAfter.length).toBe(2);
   });
 
   it('test_holes', () => {

@@ -4,11 +4,12 @@
  */
 import { defaultFormatter, type FormatterFn } from './formatters.js';
 export type { FormatterFn } from './formatters.js';
-import { ensureList, ensureDict } from 'rebulk-js';
+import { ensureList, ensureDict } from './loose.js';
 import { getFirstDefined } from './utils.js';
 import { alwaysTrue, type ValidatorFn } from './validators.js';
 import { Match, Matches, type MatchOptions, type ConflictSolverFn } from './match.js';
 import { findAll } from './utils.js';
+import { definedAt, type Frame } from './debug.js';
 
 export type DisabledFn = (context: Context) => boolean;
 export type Context = Record<string, unknown>;
@@ -54,19 +55,20 @@ export interface PatternOptions extends MatchOptions {
  * Filter options object for Match construction:
  * Remove keys that are Pattern-only.
  */
+/**
+ * Filter kwargs for Match construction — port of Python filter_match_kwargs.
+ * Python removes exactly: pattern, start, end, parent, formatter, value.
+ * Everything else passes through to Match constructor.
+ */
 export function filterMatchKwargs(opts: PatternOptions, children = false): MatchOptions {
-  const patternOnlyKeys: (keyof PatternOptions)[] = [
-    'formatter', 'value', 'children', 'every', 'privateParent', 'privateChildren',
-    'privateNames', 'ignoreNames', 'formatAll', 'validateAll', 'disabled',
-    'logLevel', 'properties', 'postProcessor', 'preMatchProcessor', 'postMatchProcessor',
-    'flags', 'abbreviations', 'ignoreCase', 'overrides', 'clear', 'validator',
-  ];
-  const result: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(opts)) {
-    if (!patternOnlyKeys.includes(k as keyof PatternOptions)) {
-      result[k] = v;
-    }
-  }
+  const result: Record<string, unknown> = { ...opts };
+  // Python blocklist: keys that are set explicitly by pattern code, not from kwargs
+  delete result['pattern'];
+  delete result['start'];
+  delete result['end'];
+  delete result['parent'];
+  delete result['formatter'];
+  delete result['value'];
   if (children) {
     delete result['name'];
   }
@@ -232,6 +234,7 @@ export abstract class Pattern extends BasePattern {
   postProcessor: PostProcessorFn | undefined;
   preMatchProcessor: ProcessorFn | undefined;
   postMatchProcessor: ProcessorFn | undefined;
+  defined_at: Frame | undefined;
   readonly _opts: PatternOptions;
 
   constructor(opts: PatternOptions = {}) {
@@ -277,6 +280,7 @@ export abstract class Pattern extends BasePattern {
     this.postProcessor = typeof opts.postProcessor === 'function' ? opts.postProcessor : undefined;
     this.preMatchProcessor = typeof opts.preMatchProcessor === 'function' ? opts.preMatchProcessor : undefined;
     this.postMatchProcessor = typeof opts.postMatchProcessor === 'function' ? opts.postMatchProcessor : undefined;
+    this.defined_at = definedAt();
   }
 
   get shouldIncludeChildren(): boolean {
@@ -430,7 +434,9 @@ export class StringPattern extends Pattern {
   *_match(pattern: string, inputString: string, _context?: Context): Generator<Match> {
     const ignoreCase = (this._opts.ignoreCase ?? false) ||
       (this._opts.flags?.includes('i') ?? false);
-    for (const idx of findAll(inputString, pattern, 0, undefined, ignoreCase)) {
+    const searchStart = (this._opts as any).start ?? 0;
+    const searchEnd = (this._opts as any).end ?? undefined;
+    for (const idx of findAll(inputString, pattern, searchStart, searchEnd, ignoreCase)) {
       const match = new Match(idx, idx + pattern.length, {
         ...this._matchKwargs,
         pattern: this,
@@ -438,6 +444,10 @@ export class StringPattern extends Pattern {
       });
       if (match.length > 0) yield match;
     }
+  }
+
+  toString(): string {
+    return `<StringPattern:(${this._patterns.map(p => `'${p}'`).join(', ')})>`;
   }
 }
 
@@ -521,6 +531,10 @@ export class RePattern extends Pattern {
       if (m[0].length === 0) pattern.lastIndex++;
     }
   }
+
+  toString(): string {
+    return `<RePattern:(${this._regexes.map(r => r.source).join(', ')})>`;
+  }
 }
 
 // ─── FunctionalPattern ────────────────────────────────────────────────────────
@@ -552,17 +566,21 @@ export class FunctionalPattern extends Pattern {
     const ret = fn(inputString, context);
     if (!ret) return;
 
-    const isSpan = (v: unknown): v is [number, number] =>
-      Array.isArray(v) && v.length === 2 && typeof v[0] === 'number';
+    const isSingleResult = (v: unknown): boolean => {
+      if (!Array.isArray(v)) return true; // dict form
+      if (v.length >= 2 && typeof v[0] === 'number' && typeof v[1] === 'number') return true; // [start, end] or [start, end, opts]
+      return false;
+    };
 
-    const args_iterable: FunctionalResult[] = Array.isArray(ret) && !isSpan(ret) ? ret as FunctionalResult[] : [ret];
+    const args_iterable: FunctionalResult[] = isSingleResult(ret) ? [ret] : ret as FunctionalResult[];
 
     for (const args of args_iterable) {
       if (!args) continue;
       if (typeof args === 'object' && !Array.isArray(args)) {
-        // Dict form
-        const opts = { ...this._matchKwargs, ...(args as Partial<MatchOptions>) };
-        const m = new Match((opts as any).start ?? 0, (opts as any).end ?? 0, {
+        // Dict form: { start, end, ... }
+        const { start: s, end: e, ...rest } = args as any;
+        const opts = { ...this._matchKwargs, ...rest };
+        const m = new Match(s ?? 0, e ?? 0, {
           ...opts,
           pattern: this,
           inputString,
@@ -571,9 +589,8 @@ export class FunctionalPattern extends Pattern {
       } else if (Array.isArray(args)) {
         let matchOpts: MatchOptions = this._matchKwargs;
         let start: number, end: number;
-        const lastEl = args[args.length - 1];
-        if (typeof lastEl === 'object' && !Array.isArray(lastEl) && typeof (lastEl as any)[0] !== 'number') {
-          matchOpts = { ...this._matchKwargs, ...(lastEl as Partial<MatchOptions>) };
+        if (args.length >= 3 && typeof args[2] === 'object' && !Array.isArray(args[2])) {
+          matchOpts = { ...this._matchKwargs, ...(args[2] as Partial<MatchOptions>) };
           [start, end] = args as [number, number];
         } else {
           [start, end] = args as [number, number];
@@ -582,5 +599,9 @@ export class FunctionalPattern extends Pattern {
         if (m.length > 0) yield m;
       }
     }
+  }
+
+  toString(): string {
+    return `<FunctionalPattern:(${this._fns.map(f => f.name || 'anonymous').join(', ')})>`;
   }
 }

@@ -49,19 +49,6 @@ export class ConflictSolver extends Rule {
             const toKeep = toRem === match ? conflictingMatch : match;
             if (!toRemove.has(toKeep)) {
               toRemove.add(toRem);
-              if (process.env.DEBUG_CONFLICT) console.log(`[ConflictSolver] removing ${(toRem as any).name}=${(toRem as any).value}@[${(toRem as any).start},${(toRem as any).end}) parent=${(toRem as any).parent?.name}@[${(toRem as any).parent?.start},${(toRem as any).parent?.end}) private=${(toRem as any).parent?.private} keeping ${(toKeep as any).name}=${(toKeep as any).value}@[${(toKeep as any).start},${(toKeep as any).end}) raw="${(toKeep as any).raw}" initLen=${(toKeep as any).initiator?.length} tags=${JSON.stringify((toKeep as any).tags)}`);
-              // If the removed match has a private parent (chain), also remove siblings.
-              // This prevents orphaned chain children (e.g. season=1 from "1.x264" chain
-              // when episode=264 is removed due to conflict with video_codec).
-              const parent = (toRem as any).parent;
-              if (parent && parent.private) {
-                for (const sibling of parent.children) {
-                  if (!toRemove.has(sibling) && !toRemove.has(toKeep)) {
-                    if (process.env.DEBUG_CONFLICT) console.log(`  [CS sibling] also removing sibling ${(sibling as any).name}=${(sibling as any).value}@[${(sibling as any).start},${(sibling as any).end})`);
-                    toRemove.add(sibling);
-                  }
-                }
-              }
             }
           }
           break;
@@ -70,11 +57,6 @@ export class ConflictSolver extends Rule {
     }
 
     return toRemove;
-  }
-
-  override then(matches: Matches, whenResponse: IdentitySet<Match>, context: Context): void {
-    const rm = new RemoveMatch();
-    rm.then(matches, [...whenResponse], context);
   }
 }
 

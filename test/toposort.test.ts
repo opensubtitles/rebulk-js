@@ -114,6 +114,23 @@ describe('Toposort', () => {
     expect(groups).toEqual(expected);
   });
 
+  it('test_objects', () => {
+    // Test with object keys (identity-based) instead of primitives
+    const a = { name: 'a' };
+    const b = { name: 'b' };
+    const c = { name: 'c' };
+    const data = new Map<object, Set<object>>([
+      [a, new Set([b])],
+      [b, new Set([c])],
+      [c, new Set()],
+    ]);
+    const result = [...toposort(data)];
+    expect(result.length).toBe(3);
+    expect(result[0]).toEqual(new Set([c]));
+    expect(result[1]).toEqual(new Set([b]));
+    expect(result[2]).toEqual(new Set([a]));
+  });
+
   it('test_input_not_modified_when_cycle_error', () => {
     const data = new Map<number, Set<number>>([
       [1, new Set([2])],

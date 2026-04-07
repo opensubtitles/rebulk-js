@@ -5,6 +5,7 @@ import { ensureList, filterIndex } from './loose.js';
 import type { FormatterFn } from './formatters.js';
 import type { ValidatorFn } from './validators.js';
 import type { BasePattern } from './pattern.js';
+import { definedAt, type Frame } from './debug.js';
 
 export type ConflictSolverFn = (match: Match, conflicting: Match) => Match | null | '__default__';
 
@@ -35,6 +36,7 @@ export class Match {
   pattern: BasePattern | undefined;
   parent: Match | undefined;
   conflictSolver: ConflictSolverFn | undefined;
+  defined_at: Frame | undefined;
   /** Index within the sequence of matches produced by the same pattern. */
   matchIndex = 0;
 
@@ -56,6 +58,8 @@ export class Match {
     this.conflictSolver = opts.conflictSolver;
     this.pattern = opts.pattern;
     this.parent = opts.parent;
+    // Python: self.defined_at = pattern.defined_at if pattern else defined_at()
+    this.defined_at = opts.pattern ? (opts.pattern as any).defined_at : definedAt();
   }
 
   get span(): [number, number] {
@@ -84,7 +88,8 @@ export class Match {
   }
 
   get value(): unknown {
-    if (this._value !== undefined && this._value !== null) return this._value;
+    // Python: `if self._value:` — truthy check, so 0/false/'' fall through
+    if (this._value) return this._value;
     if (this.formatter && typeof this.formatter === 'function') return this.formatter(this.raw ?? '');
     return this.raw;
   }
@@ -239,10 +244,14 @@ export class Match {
   }
 
   toString(): string {
-    const flags = this.private ? '+private' : '';
+    let flags = '';
+    const initiatorVal = this.initiator.value;
+    if (initiatorVal !== this.value) flags += `+initiator=${String(initiatorVal)}`;
+    if (this.private) flags += '+private';
     const name = this.name ? `+name=${this.name}` : '';
     const tags = this.tags.length ? `+tags=${JSON.stringify(this.tags)}` : '';
-    return `<${String(this.value)}:${JSON.stringify(this.span)}${flags}${name}${tags}>`;
+    const defined = this.defined_at ? `@${this.defined_at.filename.split('/').pop()}#L${this.defined_at.lineno}` : '';
+    return `<${String(this.value)}:(${this.start}, ${this.end})${flags}${name}${tags}${defined}>`;
   }
 }
 
@@ -459,7 +468,8 @@ export class _BaseMatches {
   }
 
   includes(match: Match): boolean {
-    return this._delegate.some((m) => m === match);
+    // Python uses __eq__ (value equality: span+value+name+parent)
+    return this._delegate.some((m) => m === match || m.equals(match));
   }
 
   at(index: number): Match | undefined {
@@ -468,6 +478,43 @@ export class _BaseMatches {
 
   get(index: number): Match {
     return this._delegate[index];
+  }
+
+  clear(): void {
+    this._delegate.length = 0;
+    this._nameDict = null;
+    this._tagDict = null;
+    this._startDict = null;
+    this._endDict = null;
+    this._indexDict = null;
+    this._maxEnd = 0;
+  }
+
+  slice(start: number, end?: number): Matches {
+    return new Matches(this._delegate.slice(start, end), this.inputString);
+  }
+
+  deleteSlice(start: number, end: number): void {
+    const removed = this._delegate.splice(start, end - start);
+    for (const m of removed) this._removeMatch(m);
+  }
+
+  setSlice(start: number, end: number, ...items: Match[]): void {
+    const removed = this._delegate.splice(start, end - start, ...items);
+    for (const m of removed) this._removeMatch(m);
+    for (const m of items) this._addMatch(m);
+  }
+
+  setAt(index: number, match: Match): void {
+    const old = this._delegate[index];
+    if (old) this._removeMatch(old);
+    this._delegate[index] = match;
+    this._addMatch(match);
+  }
+
+  insert(index: number, match: Match): void {
+    this._delegate.splice(index, 0, match);
+    this._addMatch(match);
   }
 
   sort(): Match[] {
@@ -484,7 +531,7 @@ export class _BaseMatches {
   named(name: string, predicate?: ((m: Match) => boolean) | null, index?: number | null): Match[] | Match | undefined;
   named(name: string, predicate?: ((m: Match) => boolean) | null, index?: number | null): Match[] | Match | undefined {
     const arr = this.nameDict.get(name) ?? [];
-    return filterIndex([...arr], predicate, index) as Match[] | Match | undefined;
+    return filterIndex(arr, predicate, index) as Match[] | Match | undefined;
   }
 
   /** All matches carrying tag `tag`. */
@@ -492,7 +539,7 @@ export class _BaseMatches {
   tagged(tag: string, predicate?: ((m: Match) => boolean) | null, index?: number | null): Match[] | Match | undefined;
   tagged(tag: string, predicate?: ((m: Match) => boolean) | null, index?: number | null): Match[] | Match | undefined {
     const arr = this.tagDict.get(tag) ?? [];
-    return filterIndex([...arr], predicate, index) as Match[] | Match | undefined;
+    return filterIndex(arr, predicate, index) as Match[] | Match | undefined;
   }
 
   /** All matches starting at position `start`. */
@@ -500,7 +547,7 @@ export class _BaseMatches {
   starting(start: number, predicate?: ((m: Match) => boolean) | null, index?: number | null): Match[] | Match | undefined;
   starting(start: number, predicate?: ((m: Match) => boolean) | null, index?: number | null): Match[] | Match | undefined {
     const arr = this.startDict.get(start) ?? [];
-    return filterIndex([...arr], predicate, index) as Match[] | Match | undefined;
+    return filterIndex(arr, predicate, index) as Match[] | Match | undefined;
   }
 
   /** All matches ending at position `end`. */
@@ -508,7 +555,7 @@ export class _BaseMatches {
   ending(end: number, predicate?: ((m: Match) => boolean) | null, index?: number | null): Match[] | Match | undefined;
   ending(end: number, predicate?: ((m: Match) => boolean) | null, index?: number | null): Match[] | Match | undefined {
     const arr = this.endDict.get(end) ?? [];
-    return filterIndex([...arr], predicate, index) as Match[] | Match | undefined;
+    return filterIndex(arr, predicate, index) as Match[] | Match | undefined;
   }
 
   /** All matches covering position `pos`. */
@@ -516,7 +563,7 @@ export class _BaseMatches {
   atIndex(pos: number, predicate?: ((m: Match) => boolean) | null, index?: number | null): Match[] | Match | undefined;
   atIndex(pos: number, predicate?: ((m: Match) => boolean) | null, index?: number | null): Match[] | Match | undefined {
     const arr = this.indexDict.get(pos) ?? [];
-    return filterIndex([...arr], predicate, index) as Match[] | Match | undefined;
+    return filterIndex(arr, predicate, index) as Match[] | Match | undefined;
   }
 
   atSpan(span: [number, number], predicate?: ((m: Match) => boolean) | null, index?: number | null): Match[] | Match | undefined {
@@ -551,30 +598,34 @@ export class _BaseMatches {
   previous(match: Match, predicate?: ((m: Match) => boolean) | null, index?: number | null): Match[] | Match | undefined {
     let current = match.start;
     while (current > -1) {
-      const prev = this.ending(current, predicate);
-      if (Array.isArray(prev) && prev.length > 0) return filterIndex(prev, null, index) as Match[] | Match | undefined;
+      const prev = this.ending(current) as Match[];
+      if (prev.length > 0) return filterIndex(prev, predicate, index) as Match[] | Match | undefined;
       current--;
     }
-    return filterIndex([], null, index) as Match[] | Match | undefined;
+    return filterIndex([], predicate, index) as Match[] | Match | undefined;
   }
 
-  /** Nearest match starting just after (or at) `match.end`. */
+  /** Nearest match starting after `match.start`. */
   next(match: Match, predicate?: ((m: Match) => boolean) | null, index?: number | null): Match[] | Match | undefined {
-    let current = match.end;
+    let current = match.start + 1;
     while (current <= this.maxEnd) {
-      const nxt = this.starting(current, predicate);
-      if (Array.isArray(nxt) && nxt.length > 0) return filterIndex(nxt, null, index) as Match[] | Match | undefined;
+      const nxt = this.starting(current) as Match[];
+      if (nxt.length > 0) return filterIndex(nxt, predicate, index) as Match[] | Match | undefined;
       current++;
     }
-    return filterIndex([], null, index) as Match[] | Match | undefined;
+    return filterIndex([], predicate, index) as Match[] | Match | undefined;
   }
 
   /** All matches that overlap with `match`. */
   conflicting(match: Match, predicate?: ((m: Match) => boolean) | null, index?: number | null): Match[] | Match | undefined {
     const ret: Match[] = [];
+    const seen = new Set<Match>();
     for (let i = match.start; i < match.end; i++) {
       for (const m of this.indexDict.get(i) ?? []) {
-        if (m !== match && !ret.includes(m)) ret.push(m);
+        if (m !== match && !seen.has(m)) {
+          seen.add(m);
+          ret.push(m);
+        }
       }
     }
     return filterIndex(ret, predicate, index) as Match[] | Match | undefined;
@@ -646,14 +697,20 @@ export class _BaseMatches {
     const ret: Match[] = [];
     let hole = false;
 
-    // Find actual start (skip back to find any match starting before `start`)
-    let loopStart = start;
+    // Find actual start — Python _hole_start: scan backward from `start`,
+    // return the first position where a non-ignored match starts
+    let loopStart = 0;
     for (let i = start - 1; i >= 0; i--) {
-      for (const m of this.starting(i) as Match[] || []) {
+      const startingMatches = this.starting(i) as Match[];
+      let found = false;
+      for (const m of startingMatches) {
         if (!ignore || !ignore(m)) {
           loopStart = i;
+          found = true;
+          break;
         }
       }
+      if (found) break;
     }
 
     for (let rindex = loopStart; rindex < limit; rindex++) {
@@ -675,15 +732,21 @@ export class _BaseMatches {
     }
 
     if (ret.length > 0 && hole) {
-      // Find end of last hole
-      let holeEnd = limit;
-      for (let rindex = limit; rindex < this.maxEnd; rindex++) {
-        const atI = this.indexDict.get(rindex) ?? [];
-        const current = ignore ? atI.filter((m) => !ignore(m)) : [...atI];
-        if (current.length > 0) {
-          holeEnd = rindex;
-          break;
+      // Python _hole_end: find next starting match from last rindex position
+      let holeEnd = this.maxEnd;
+      // rindex is the loop variable from the for loop above — use limit-1 as last position
+      const lastRindex = limit > loopStart ? limit - 1 : loopStart;
+      for (let ri = lastRindex; ri < this.maxEnd; ri++) {
+        const startingMatches = this.starting(ri) as Match[];
+        let found = false;
+        for (const m of startingMatches) {
+          if (!ignore || !ignore(m)) {
+            holeEnd = ri;
+            found = true;
+            break;
+          }
         }
+        if (found) break;
       }
       ret[ret.length - 1].end = Math.min(holeEnd, limit);
     }
@@ -720,10 +783,13 @@ export class _BaseMatches {
       matchArr.push(match);
       ret.matches.set(match.name ?? '', matchArr);
 
+      const valEquals = (a: unknown, b: unknown) =>
+        details && a instanceof Match && b instanceof Match ? a.equals(b) : a === b;
+
       // Track values list
       if (!enforceList) {
         const valArr = ret.valuesList.get(match.name ?? '') ?? [];
-        if (!valArr.includes(val)) valArr.push(val);
+        if (!valArr.some((v) => valEquals(v, val))) valArr.push(val);
         ret.valuesList.set(match.name ?? '', valArr);
       }
 
@@ -731,9 +797,9 @@ export class _BaseMatches {
       if (existing !== undefined) {
         if (!firstValue) {
           if (Array.isArray(existing)) {
-            if (!existing.includes(val)) existing.push(val);
+            if (!existing.some((v) => valEquals(v, val))) existing.push(val);
           } else {
-            if (existing !== val) ret.set(match.name!, [existing, val]);
+            if (!valEquals(existing, val)) ret.set(match.name!, [existing, val]);
           }
         }
       } else {

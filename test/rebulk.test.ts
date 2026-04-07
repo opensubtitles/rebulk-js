@@ -173,6 +173,8 @@ describe('Rebulk', () => {
     expect(matches.length).toBe(4);
     expect((matches.named('str') as Match[]).length).toBe(1);
     expect((matches.named('fn') as Match[]).length).toBe(2);
+    expect((matches.named('false') as Match[]).length).toBe(0);
+    expect((matches.tagged('false') as Match[]).length).toBe(0);
     expect((matches.tagged('first') as Match[]).length).toBe(1);
     expect((matches.tagged('other') as Match[]).length).toBe(2);
     expect((matches.tagged('custom') as Match[]).length).toBe(2);
@@ -455,5 +457,35 @@ describe('TestImmutable', () => {
     }
     expect(named.length).toBe(0);
     expect(matches.length).toBe(3);
+  });
+
+  it('cross-module rule priority ordering', () => {
+    const order: string[] = [];
+
+    class HighPriorityRule extends Rule {
+      static override priority = 64;
+      override consequence = RemoveMatch;
+      when(_matches: Matches) { order.push('high'); return false; }
+    }
+
+    class LowPriorityRule extends Rule {
+      static override priority = 0;
+      override consequence = RemoveMatch;
+      when(_matches: Matches) { order.push('low'); return false; }
+    }
+
+    const r1 = new Rebulk();
+    r1.rules(LowPriorityRule); // registered first but lower priority
+
+    const r2 = new Rebulk();
+    r2.rules(HighPriorityRule); // registered second but higher priority
+
+    const combined = new Rebulk();
+    combined.rebulk(r1);
+    combined.rebulk(r2);
+    combined.string('test', { name: 'x' });
+    combined.matches('test');
+
+    expect(order).toEqual(['high', 'low']); // high priority runs first
   });
 });

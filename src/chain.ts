@@ -232,6 +232,46 @@ export class Chain extends Pattern {
   override get patterns(): [Chain] { return [this]; }
   override get matchOptions() { return {}; }
 
+  /**
+   * Override from Pattern — when the main chain match fails validation,
+   * try removing trailing groups from the last pattern and re-validate.
+   * Port of Python Chain._process_match fallback logic.
+   */
+  protected override _processMatch(match: Match, matchIndex: number, child = false): boolean {
+    const ret = super._processMatch(match, matchIndex, child);
+    if (ret) return true;
+
+    if (match.children.length > 0) {
+      const lastPattern = match.children.get(match.children.length - 1).pattern;
+      const lastPatternChildren = match.children.toArray().filter(c => c.pattern === lastPattern);
+      const lastPatternGroups = Chain._groupByMatchIndex(lastPatternChildren);
+
+      if (lastPatternGroups.size > 0) {
+        const originalChildren = new Matches(match.children.toArray());
+        const originalEnd = match.end;
+
+        const indices = [...lastPatternGroups.keys()].sort((a, b) => b - a);
+        for (const idx of indices) {
+          const lastMatches = lastPatternGroups.get(idx)!;
+          for (const lm of lastMatches) {
+            match.children.remove(lm);
+          }
+          match.end = match.children.length > 0
+            ? match.children.get(match.children.length - 1).end
+            : match.start;
+          const retried = super._processMatch(match, matchIndex, child);
+          if (retried) return true;
+        }
+
+        // Restore original state if all fallbacks failed
+        match.children = originalChildren;
+        match.end = originalEnd;
+      }
+    }
+
+    return false;
+  }
+
   override *_match(_pattern: unknown, inputString: string, context?: Context): Generator<Match> {
     let offset = 0;
     while (offset < inputString.length) {

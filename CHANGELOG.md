@@ -1,5 +1,61 @@
 # Changelog
 
+## 3.3.1
+
+Cleanup and performance improvements. No API changes.
+
+- Removed dead code: unused `getFirstDefined` duplicate and unused `isIterable` import in `loose.ts`
+- Performance: `conflicting()` uses `Set` for O(1) dedup instead of `Array.includes()` O(n)
+- Performance: removed unnecessary array spreads in `named()`, `tagged()`, `starting()`, `ending()`, `atIndex()`
+- Deleted 13 leftover empty test artifact files from Python port
+- Added `*.tgz` to `.gitignore`
+
+## 3.3.0
+
+Full 1:1 Python rebulk parity release. Matches Python rebulk v3.3.0 feature-for-feature.
+
+### New Modules
+
+- **`debug.ts`** — Debug tools: `DEBUG` flag, `LOG_LEVEL`, `Frame`, `definedAt()`, `frameRepr()`. Patterns, Matches, and Rules now track their definition location when `DEBUG=true`.
+- **`introspector.ts`** — Pattern/rule introspection: `Introspection`, `PatternDescription`, `RuleDescription`, `introspect()`. Analyzes a Rebulk instance to discover what properties it can produce.
+- **`validators()` chain function** — Chain multiple validators into one (all must pass).
+- **`loose.call()`** — Loose function calling that trims positional args to `Function.length`.
+
+### Source Code Fixes (Python Parity)
+
+- **`Match.value` getter** uses truthy check matching Python (`0`, `false`, `''` fall through to formatter/raw)
+- **`Match.toString()`** now uses Python format `<value:(start, end)+flags>` with initiator and defined_at info
+- **`Match.defined_at`** tracks definition location (from pattern or call site when `DEBUG=true`)
+- **`Pattern.defined_at`** tracks where patterns were created
+- **`CustomRule.defined_at`** tracks where rules were created
+- **`next()`** starts at `match.start + 1` matching Python (was `match.end`)
+- **`previous()`/`next()`** find nearest match group first, then filter by predicate (matching Python)
+- **`Matches.includes()`** uses `match.equals()` for value equality (matching Python `__contains__` → `__eq__`)
+- **`Matches.slice()`** returns `Matches` container (matching Python `__getitem__` with slice)
+- **`filterMatchKwargs`** now uses Python's exact 6-key blocklist approach
+- **`ConflictSolver`** removed JS-only sibling removal logic and custom `then()` override; now uses standard `Rule.then()` dispatch like Python
+- **`Chain._processMatch`** override added — fallback validation by removing trailing chain parts (matching Python)
+- **`Rules.loadModule()`** scans an object's values for CustomRule subclasses (Python module introspection equivalent)
+- **`Rules.load()`** auto-detects module-like objects, class constructors, and instances
+- **`toposortRules`** duplicate class detection moved here from `executeAllRules` (matching Python)
+- **`holes()`** loopStart calculation fixed to break on first found match (matching Python `_hole_start`)
+- **`ensureDict`** fixed to match Python's falsy-first-then-promote logic
+- **`toposortFlatten`** added and exported
+- Fixed self-referencing import (`rebulk-js` → `./loose.js`)
+
+### New Tests (169 total, 754 assertions)
+
+- **`test/validators.test.ts`** (4 tests) — charsBefore, charsAfter, charsSurround, validators chain
+- **`test/debug.test.ts`** (7 tests) — End-to-end debug integration: Pattern, Match, Rule, Rebulk defined_at tracking
+- **`test/introspector.test.ts`** (4 tests) — String/regex/functional pattern introspection, rule properties
+- **`test/loose.test.ts`** (6 tests) — ensureList, ensureDict, filterIndex, setDefaults
+- **`test/toposort.test.ts`** +1 test — test_objects with non-primitive keys
+- Added missing Python assertions across all existing test files: range(), chain_before/after with Match objects, raw_start/raw_end reset, pattern.name checks, validate_all first scenario, named("false")/tagged("false"), slice instanceof check, unresolved symmetric case
+
+### Exports
+
+- Added: `call`, `validators`, `toposortRules`, `CyclicDependency`, `DEBUG`, `LOG_LEVEL`, `setDebug`, `setLogLevel`, `definedAt`, `frameRepr`, `Frame`, `Introspection`, `PatternDescription`, `RuleDescription`, `Description`, `introspect`
+
 ## 3.2.1
 
 ### Improvements

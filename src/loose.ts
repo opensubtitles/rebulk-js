@@ -1,7 +1,27 @@
 /**
  * Misc helper functions — port of rebulk/loose.py
  */
-import { isIterable } from './utils.js';
+
+/**
+ * Call a function with given args, filtering extra positional args
+ * that exceed the function's declared parameter count.
+ *
+ * Port of Python rebulk/loose.py call() — in Python this introspects
+ * function signatures to strip unsupported kwargs. In JS, functions
+ * silently accept extra positional args, but we still trim them to
+ * match Function.length (declared parameter count) when the function
+ * does NOT use rest params.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function call(fn: (...args: any[]) => any, ...args: any[]): any {
+  // Function.length gives the number of declared parameters (excluding rest params).
+  // If the function has rest params, length may be 0 or fewer than args.
+  // We trim args to fn.length only when fn.length > 0 (non-rest).
+  if (fn.length > 0 && args.length > fn.length) {
+    return fn(...args.slice(0, fn.length));
+  }
+  return fn(...args);
+}
 
 /** Wrap a non-array value in an array; return [] for null/undefined. */
 export function ensureList<T>(param: T | T[] | null | undefined): T[] {
@@ -20,10 +40,14 @@ export function ensureDict<T>(
   defaultKey: string | null = null,
 ): [Record<string, T>, T | undefined] {
   if (!param) {
-    return [{ [defaultKey as string]: param as T }, defaultValue];
+    param = defaultValue as T;
   }
-  if (typeof param !== 'object' || Array.isArray(param)) {
-    return [{ [defaultKey as string]: param as T }, param as T];
+  if (typeof param !== 'object' || param === null || Array.isArray(param)) {
+    if (param) {
+      defaultValue = param as T;
+    }
+    const key = defaultKey ?? (undefined as unknown as string);
+    return [{ [key]: param } as Record<string, T>, defaultValue];
   }
   const asObj = param as Record<string, T>;
   return [asObj, defaultValue];
@@ -51,25 +75,6 @@ export function filterIndex<T>(
   return result;
 }
 
-/**
- * Return the first defined value for the given keys in data.
- * Port of Python rebulk/loose.py get_first_defined.
- */
-export function getFirstDefined<T>(
-  data: Record<string, T | undefined>,
-  keys: Iterable<string | null | undefined>,
-  defaultValue?: T,
-  ignoreValues?: T[],
-): T | undefined {
-  const ignore = ignoreValues ?? [];
-  for (const key of keys) {
-    if (key !== null && key !== undefined && key in data) {
-      const v = data[key as string];
-      if (!ignore.includes(v as T)) return v;
-    }
-  }
-  return defaultValue;
-}
 
 /**
  * Merge `defaults` into `kwargs`, optionally overriding existing keys.

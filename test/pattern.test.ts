@@ -241,8 +241,14 @@ describe('TestRePattern', () => {
 
     const [parent, group1, group2] = matches;
     expect(parent.private).toBe(false);
+    expect(parent.span).toEqual([INPUT_STRING.indexOf('Celtic'), INPUT_STRING.indexOf('Celtic') + 'Celtic violin'.length]);
+    expect(parent.pattern).toBe(pattern);
     expect(group1.private).toBe(true);
+    expect(group1.name).toBe('param1');
+    expect(group1.value).toBe('Celtic');
     expect(group2.private).toBe(true);
+    expect(group2.name).toBe('param2');
+    expect(group2.value).toBe('violin');
   });
 
   it('test_every', () => {
@@ -252,8 +258,14 @@ describe('TestRePattern', () => {
 
     const [parent, group1, group2] = matches;
     expect(parent.private).toBe(false);
+    expect(parent.span).toEqual([INPUT_STRING.indexOf('Celtic'), INPUT_STRING.indexOf('Celtic') + 'Celtic violin'.length]);
+    expect(parent.pattern).toBe(pattern);
     expect(group1.private).toBe(false);
+    expect(group1.name).toBe('param1');
+    expect(group1.value).toBe('Celtic');
     expect(group2.private).toBe(false);
+    expect(group2.name).toBe('param2');
+    expect(group2.value).toBe('violin');
   });
 
   it('test_private_names', () => {
@@ -559,13 +571,22 @@ describe('TestValidator', () => {
   });
 
   it('test_validate_all', () => {
-    // validator on children — intParam is 1849 which is > 100
+    // Python first sub-scenario: value < 100 → validator fails → 0 matches
     let pattern = new RePattern({
+      formatter: (x: string) => parseInt(x) || x,
+      validator: (match: Match) => typeof match.value === 'number' ? match.value < 100 : true,
+      children: true,
+    }, 'contains (?P<intParam>\\d+)');
+    let matches = pattern.matches(valInputStr) as Match[];
+    expect(matches.length).toBe(0);
+
+    // validator on children — intParam is 1849 which is > 100
+    pattern = new RePattern({
       formatter: (x: string) => parseInt(x) || x,
       validator: (match: Match) => typeof match.value === 'number' ? match.value > 100 : true,
       children: true,
     }, 'contains (?P<intParam>\\d+)');
-    let matches = pattern.matches(valInputStr) as Match[];
+    matches = pattern.matches(valInputStr) as Match[];
     expect(matches.length).toBe(1);
 
     // validator blocks children that don't start with 'abc'

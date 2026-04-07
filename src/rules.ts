@@ -5,6 +5,7 @@ import { isIterable } from './utils.js';
 import { toposort } from './toposort.js';
 import type { Match, Matches } from './match.js';
 import type { Context } from './pattern.js';
+import { definedAt, type Frame } from './debug.js';
 
 // ─── Consequence / Condition ──────────────────────────────────────────────────
 
@@ -29,6 +30,12 @@ export abstract class CustomRule extends Condition implements Consequence {
   name_ = (this.constructor as typeof CustomRule).name;
   dependency_ = (this.constructor as typeof CustomRule).dependency;
   logLevel = 0;
+  defined_at: Frame | undefined;
+
+  constructor() {
+    super();
+    this.defined_at = definedAt();
+  }
 
   abstract when(matches: Matches, context: Context): unknown;
   abstract then(matches: Matches, whenResponse: unknown, context: Context): unknown;
@@ -38,7 +45,8 @@ export abstract class CustomRule extends Condition implements Consequence {
   }
 
   toString(): string {
-    return `<${this.name_ ?? this.constructor.name}>`;
+    const defined = this.defined_at ? `@${this.defined_at.filename.split('/').pop()}#L${this.defined_at.lineno}` : '';
+    return `<${this.name_ ?? this.constructor.name}${defined}>`;
   }
 
   /** Equality: same class = same rule (for deduplication). */
@@ -200,12 +208,32 @@ export class Rules {
     this.load(...rules);
   }
 
-  load(...rules: Array<typeof CustomRule | CustomRule>): void {
+  load(...rules: Array<typeof CustomRule | CustomRule | Record<string, unknown>>): void {
     for (const rule of rules) {
-      if (typeof rule === 'function') {
+      if (typeof rule === 'function' && rule.prototype instanceof CustomRule) {
+        // Class constructor — instantiate
         this._list.push(new (rule as unknown as new () => CustomRule)());
-      } else {
+      } else if (typeof rule === 'object' && rule !== null && !(rule instanceof CustomRule)) {
+        // Module-like object — scan for rule classes (Python load_module equivalent)
+        this.loadModule(rule as Record<string, unknown>);
+      } else if (rule instanceof CustomRule) {
+        // Instance
         this._list.push(rule);
+      } else if (typeof rule === 'function') {
+        // Fallback: treat as constructor
+        this._list.push(new (rule as unknown as new () => CustomRule)());
+      }
+    }
+  }
+
+  /**
+   * Load rules from a module-like object by scanning its exported members.
+   * Port of Python Rules.load_module() which uses inspect.getmembers().
+   */
+  loadModule(module: Record<string, unknown>): void {
+    for (const value of Object.values(module)) {
+      if (typeof value === 'function' && value.prototype instanceof CustomRule) {
+        this._list.push(new (value as unknown as new () => CustomRule)());
       }
     }
   }
@@ -280,6 +308,9 @@ export function toposortRules(rules: CustomRule[]): Set<CustomRule>[] {
   const classToDep = new Map<typeof CustomRule, CustomRule>();
 
   for (const rule of rules) {
+    if (classToDep.has(rule.constructor as typeof CustomRule)) {
+      throw new Error(`Duplicate class rules are not allowed: ${rule.constructor.name}`);
+    }
     classToDep.set(rule.constructor as typeof CustomRule, rule);
   }
 
