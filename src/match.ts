@@ -292,6 +292,10 @@ export class _BaseMatches {
 
   toArray(): Match[] { return [...this._delegate]; }
 
+  /** All matches as an array. Ported Python code reads `matches.matches` — without
+   *  this getter that silently evaluated to undefined and turned rules into no-ops. */
+  get matches(): Match[] { return [...this._delegate]; }
+
   // ── Cache accessors ──────────────────────────────────────────────────────
 
   get nameDict(): Map<string, Match[]> {

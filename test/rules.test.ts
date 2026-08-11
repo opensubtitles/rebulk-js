@@ -149,13 +149,22 @@ describe('Rules Engine', () => {
     expect(matches.get(1).equals(new Match(3, 4))).toBe(true);
   });
 
-  it('test_rules_duplicates', () => {
+  it('test_rules_duplicates - multiple instances of one class all execute', () => {
+    // Python rebulk raises here, and its Rules container silently dedupes by
+    // class — which makes guessit's duplicate registrations (e.g.
+    // RemoveLessSpecificSeasonEpisode('season')/('episode')) lose an instance.
+    // rebulk-js deliberately allows duplicates and runs every instance.
+    const calls: number[] = [];
+    class Dup extends CustomRule {
+      idx: number;
+      constructor(idx = -1) { super(); this.idx = idx; }
+      when() { calls.push(this.idx); return null; }
+      then() { /* noop */ }
+    }
     const matches = new Matches([new Match(1, 2)]);
-    const rules = new Rules(Rule1, Rule1);
-
-    expect(() => {
-      rules.executeAllRules(matches, {});
-    }).toThrow(/Duplicate class rules/);
+    const rules = new Rules(new Dup(1), new Dup(2));
+    rules.executeAllRules(matches, {});
+    expect(calls.sort()).toEqual([1, 2]);
   });
 
   it('test_rule_repr', () => {

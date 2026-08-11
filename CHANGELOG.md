@@ -1,5 +1,19 @@
 # Changelog
 
+## 3.4.0
+
+Engine fixes found while porting guessit 4.x rules in guessit-js:
+
+- **Duplicate rule classes are allowed and all instances execute.** Python rebulk
+  raises on duplicates and its Rules container silently dedupes by class — which
+  makes guessit's own `RemoveLessSpecificSeasonEpisode("season")/("episode")`
+  registration lose an instance. rebulk-js now runs every instance; a class
+  dependency resolves to all instances of that class.
+- **`Matches.matches` getter** returning the match array. Ported Python code
+  reads `matches.matches`; previously that evaluated to `undefined` and turned
+  rule bodies into silent no-ops.
+- CI + tag-triggered npm trusted-publishing workflows added.
+
 ## 3.3.1
 
 Cleanup and performance improvements. No API changes.

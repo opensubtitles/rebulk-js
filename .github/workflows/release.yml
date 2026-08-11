@@ -1,0 +1,43 @@
+name: Release
+
+# Publishes to npm via OIDC trusted publishing (no NPM_TOKEN secret).
+# Requires the "rebulk-js" package on npmjs.com to have this repo + workflow
+# configured as a Trusted Publisher: https://docs.npmjs.com/trusted-publishers
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Update npm (OIDC trusted publishing needs npm >= 11.5)
+        run: npm install -g npm@latest
+
+      - run: npm ci
+
+      - name: Test
+        run: npx vitest run
+
+      - name: Typecheck + build
+        run: npm run build
+
+      - name: Publish to npm (trusted publishing + provenance)
+        run: npm publish --provenance --access public
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --generate-notes

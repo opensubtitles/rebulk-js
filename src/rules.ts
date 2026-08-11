@@ -305,13 +305,14 @@ export function executeRule(rule: CustomRule, matches: Matches, context: Context
 
 export function toposortRules(rules: CustomRule[]): Set<CustomRule>[] {
   const graph = new Map<CustomRule, Set<CustomRule>>();
-  const classToDep = new Map<typeof CustomRule, CustomRule>();
+  // Multiple instances of the same rule class are allowed (Python rebulk permits
+  // this — guessit registers e.g. RemoveLessSpecificSeasonEpisode twice). A
+  // dependency on a class resolves to ALL of its instances.
+  const classToDeps = new Map<typeof CustomRule, CustomRule[]>();
 
   for (const rule of rules) {
-    if (classToDep.has(rule.constructor as typeof CustomRule)) {
-      throw new Error(`Duplicate class rules are not allowed: ${rule.constructor.name}`);
-    }
-    classToDep.set(rule.constructor as typeof CustomRule, rule);
+    const cls = rule.constructor as typeof CustomRule;
+    classToDeps.set(cls, [...(classToDeps.get(cls) ?? []), rule]);
   }
 
   for (const rule of rules) {
@@ -320,16 +321,18 @@ export function toposortRules(rules: CustomRule[]): Set<CustomRule>[] {
     if (rawDeps) {
       const depArr = Array.isArray(rawDeps) ? rawDeps : [rawDeps];
       for (const dep of depArr) {
-        let resolved: CustomRule | undefined;
+        let resolved: CustomRule[] = [];
         if (typeof dep === 'string') {
           // String-based class name lookup
-          for (const [cls, inst] of classToDep) {
-            if ((cls as { name?: string }).name === dep) { resolved = inst; break; }
+          for (const [cls, insts] of classToDeps) {
+            if ((cls as { name?: string }).name === dep) { resolved = insts; break; }
           }
         } else {
-          resolved = classToDep.get(dep as typeof CustomRule);
+          resolved = classToDeps.get(dep as typeof CustomRule) ?? [];
         }
-        if (resolved) deps.add(resolved);
+        for (const inst of resolved) {
+          if (inst !== rule) deps.add(inst);
+        }
       }
     }
     graph.set(rule, deps);
