@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+- **Chain matching is no longer quadratic in the input length.** `Chain._match`
+  walks the input one offset at a time and handed each attempt the entire rest of
+  the string, but `ChainPart._truncateRepeater` keeps only the matches running
+  contiguously from the start of that slice — so nearly every scan was discarded
+  work, and the walk cost O(offsets x remaining length).
+
+  Each attempt now sees a bounded window, and when a window holds no chain the
+  walk slides on (with overlap) instead of giving up on the rest of the input,
+  which is what the old `break` did once a scan reached the end.
+
+  Measured on a guessit-js season/episode chain: four times the input took 15.2x
+  the time before, 4x after. A 2800-character name went from 2308 ms to 425 ms;
+  an ordinary name is unchanged at well under 3 ms. Existing behaviour is
+  unchanged — guessit-js parses all 1470 corpus names to byte-identical results,
+  and `test/chain-scaling.test.ts` pins both the complexity class and the
+  discovery of chains lying far beyond the first window.
+
 ## 3.4.0
 
 Engine fixes found while porting guessit 4.x rules in guessit-js:

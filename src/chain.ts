@@ -133,6 +133,31 @@ export class ChainPart extends BasePattern {
 
 // ─── Chain ────────────────────────────────────────────────────────────────────
 
+/**
+ * How much of the remaining input a chain part is offered on each attempt.
+ *
+ * `_match` walks the input one offset at a time, and before this bound each
+ * attempt handed the pattern the entire rest of the string. The scan was almost
+ * all waste: `ChainPart._truncateRepeater` keeps only the matches that run
+ * contiguously from the start of what it was given and drops everything past the
+ * first separator gap, so nothing beyond the current unbroken run can ever be
+ * used. That made the walk O(offsets x remaining length) — quadratic in the
+ * input. A name built from 400 repeated season markers took 2.3 s where an
+ * ordinary one takes under 3 ms.
+ *
+ * The bound has to span the rest of the filepart, not just the chain: the
+ * longest name in the guessit corpus (196 characters) needs more than 128. A
+ * kilobyte covers every real name by a wide margin and matches the cap the
+ * guessit-js HTTP endpoints already enforce, so any input those accept is parsed
+ * exactly as before — the bound only ever engages on something that was never a
+ * filename.
+ */
+const CHAIN_SCAN_WINDOW = 256;
+const CHAIN_CONTINUE_WINDOW = 256;
+
+/** Longest chain a window boundary may split; carried into the next slice. */
+const CHAIN_WINDOW_OVERLAP = 128;
+
 export class Chain extends Pattern {
   parts: ChainPart[] = [];
   // Builder-compatible defaults (populated by Builder.chain())
@@ -278,7 +303,7 @@ export class Chain extends Pattern {
       let chainFound = false;
       const currentChainMatches: Match[] = [];
       let valid = true;
-      let chainInputString = inputString.slice(offset);
+      let chainInputString = inputString.slice(offset, offset + CHAIN_SCAN_WINDOW);
 
       for (const chainPart of this.parts) {
         try {
@@ -296,7 +321,7 @@ export class Chain extends Pattern {
             for (const [matchIndex, grouped] of groupedRaw) {
               chainFound = true;
               offset = grouped[grouped.length - 1].rawEnd;
-              chainInputString = inputString.slice(offset);
+              chainInputString = inputString.slice(offset, offset + CHAIN_CONTINUE_WINDOW);
 
               if (!chainPart.isHidden) {
                 const groupedMatches = groupedAll.get(matchIndex) ?? [];
@@ -320,7 +345,18 @@ export class Chain extends Pattern {
         }
       }
 
-      if (!chainFound) break;
+      if (!chainFound) {
+        // The probe above only saw CHAIN_SCAN_WINDOW characters. Finding nothing
+        // there means the chain does not start inside that slice, not that the
+        // input holds no further chain, so slide the window on rather than
+        // abandoning the rest. The overlap carries any occurrence straddling the
+        // boundary. Before the window existed the probe always reached the end of
+        // the input, which is what made the walk quadratic.
+        const next = offset + CHAIN_SCAN_WINDOW - CHAIN_WINDOW_OVERLAP;
+        if (next <= offset || next >= inputString.length) break;
+        offset = next;
+        continue;
+      }
 
       if (currentChainMatches.length > 0 && valid) {
         yield this._buildChainMatch(currentChainMatches, inputString);
