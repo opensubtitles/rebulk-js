@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 3.4.1
 
 - **Chain matching is no longer quadratic in the input length.** `Chain._match`
   walks the input one offset at a time and handed each attempt the entire rest of
