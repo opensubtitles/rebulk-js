@@ -137,25 +137,34 @@ export class ChainPart extends BasePattern {
  * How much of the remaining input a chain part is offered on each attempt.
  *
  * `_match` walks the input one offset at a time, and before this bound each
- * attempt handed the pattern the entire rest of the string. The scan was almost
- * all waste: `ChainPart._truncateRepeater` keeps only the matches that run
+ * attempt handed the pattern the entire rest of the string. That scan was almost
+ * all waste: `ChainPart._truncateRepeater` keeps only the matches running
  * contiguously from the start of what it was given and drops everything past the
  * first separator gap, so nothing beyond the current unbroken run can ever be
- * used. That made the walk O(offsets x remaining length) — quadratic in the
+ * used. The walk therefore cost O(offsets x remaining length) — quadratic in the
  * input. A name built from 400 repeated season markers took 2.3 s where an
  * ordinary one takes under 3 ms.
  *
- * The bound has to span the rest of the filepart, not just the chain: the
- * longest name in the guessit corpus (196 characters) needs more than 128. A
- * kilobyte covers every real name by a wide margin and matches the cap the
- * guessit-js HTTP endpoints already enforce, so any input those accept is parsed
- * exactly as before — the bound only ever engages on something that was never a
- * filename.
+ * The window must be wide enough to hold the longest run a chain part can
+ * legitimately consume. Bisecting against the downstream guessit-js corpus
+ * (1542 tests) puts that floor between 64 and 96 characters: 96 passes, 64 fails
+ * 7. 256 keeps a wide margin over the measured floor.
  */
 const CHAIN_SCAN_WINDOW = 256;
+
+/**
+ * The same bound once a chain is under way. A continuation has to sit flush
+ * against the previous part — `_truncateRepeater` discards anything with a
+ * separator before it — so this could be smaller; it is held equal to the
+ * initial window so the two can never disagree about what a chain may span.
+ */
 const CHAIN_CONTINUE_WINDOW = 256;
 
-/** Longest chain a window boundary may split; carried into the next slice. */
+/**
+ * Carried into the next slice when a window turns up nothing, so a chain lying
+ * across a window boundary is still seen whole. Half the window bounds the
+ * longest chain that may straddle one.
+ */
 const CHAIN_WINDOW_OVERLAP = 128;
 
 export class Chain extends Pattern {
