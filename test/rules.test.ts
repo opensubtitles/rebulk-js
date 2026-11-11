@@ -372,4 +372,32 @@ describe('rebulk rule merging', () => {
     expect(effective.filter((r) => r instanceof ConflictSolver).length).toBe(1);
     expect(effective.filter((r) => r instanceof PrivateRemover).length).toBe(1);
   });
+
+  it('collects rules and patterns from nested rebulks at any depth', async () => {
+    const { Rebulk } = await import('../src/rebulk.js');
+    const grandchild = new Rebulk().rules(new TaggedRule('deep'));
+    grandchild.regex('deep-pattern', { name: 'deep' });
+    const child = new Rebulk();
+    child.rebulk(grandchild);
+    const parent = new Rebulk();
+    parent.rebulk(child);
+
+    const fired: string[] = [];
+    parent.matches('warmup.mkv', { fired });
+    expect(fired).toEqual(['deep']);
+    expect(parent.effectivePatterns({}).length).toBe(1);
+  });
+
+  it('skips a disabled subtree whole', async () => {
+    const { Rebulk } = await import('../src/rebulk.js');
+    const grandchild = new Rebulk().rules(new TaggedRule('deep'));
+    const child = new Rebulk({ disabled: true });
+    child.rebulk(grandchild);
+    const parent = new Rebulk();
+    parent.rebulk(child);
+
+    const fired: string[] = [];
+    parent.matches('warmup.mkv', { fired });
+    expect(fired).toEqual([]);
+  });
 });

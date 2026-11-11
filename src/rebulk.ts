@@ -59,23 +59,36 @@ export class Rebulk extends Builder {
     return matches;
   }
 
+  /**
+   * Children at any depth, skipping a disabled subtree entirely.
+   *
+   * Only direct children were collected before, so a rebulk added to a rebulk that
+   * was itself added to another contributed nothing: its rules never ran and its
+   * patterns never matched, silently (Toilal/rebulk#93). Composing builders is the
+   * normal way to assemble a large rule set, so the nesting depth must not matter.
+   */
+  private _effectiveChildren(context: Context): Rebulk[] {
+    const out: Rebulk[] = [];
+    for (const child of this._rebulks) {
+      if (child._disabled(context)) continue;
+      out.push(child, ...child._effectiveChildren(context));
+    }
+    return out;
+  }
+
   effectiveRules(context?: Context): Rules {
     const rules = new Rules();
     rules.extend(this._rules);
-    for (const child of this._rebulks) {
-      if (!child._disabled(context ?? {})) {
-        rules.extend(child._rules);
-      }
+    for (const child of this._effectiveChildren(context ?? {})) {
+      rules.extend(child._rules);
     }
     return rules;
   }
 
   effectivePatterns(context?: Context): BasePattern[] {
     const patterns = [...this._patterns];
-    for (const child of this._rebulks) {
-      if (!child._disabled(context ?? {})) {
-        extendSafe(patterns, child._patterns);
-      }
+    for (const child of this._effectiveChildren(context ?? {})) {
+      extendSafe(patterns, child._patterns);
     }
     return patterns;
   }

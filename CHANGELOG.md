@@ -2,6 +2,13 @@
 
 ## 3.5.0
 
+- **Nested rebulks are collected at any depth.** Only direct children were walked,
+  so a rebulk added to a rebulk that was itself added to another contributed
+  nothing: its rules never ran and its patterns never matched, with no error.
+  Composing builders is the normal way to assemble a large rule set, so depth must
+  not matter. A disabled subtree is still skipped whole. Same defect as
+  Toilal/rebulk#93, fixed upstream in rebulk 6.0.2.
+
 - **Rule deduplication is parameter-aware, so a rule class registered twice with
   different arguments now really does run twice.** 3.4.0 claimed every instance
   of a duplicated rule class executes; only half of that shipped.
