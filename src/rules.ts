@@ -49,10 +49,48 @@ export abstract class CustomRule extends Condition implements Consequence {
     return `<${this.name_ ?? this.constructor.name}${defined}>`;
   }
 
-  /** Equality: same class = same rule (for deduplication). */
+  /**
+   * Equality for deduplication: same class *and* same parameters.
+   *
+   * Python rebulk compares by class alone, so a class registered twice with
+   * different constructor arguments loses an instance when rebulks are merged
+   * — guessit's `RemoveLessSpecificSeasonEpisode("season")` / `("episode")`
+   * pair is the known casualty (Toilal/rebulk#92). Those are two distinct
+   * passes and both must survive `Rules.extend`.
+   *
+   * Parameters held by reference (closures, compiled regexes, config objects
+   * rebuilt per instance) compare by identity, so differently-parameterized
+   * instances are never equal. Interchangeable instances — the default
+   * `ConflictSolver` / `PrivateRemover` that every Rebulk registers — carry
+   * identical own properties and still collapse to one.
+   */
   equals(other: CustomRule): boolean {
-    return this.constructor === other.constructor;
+    if ((this as CustomRule) === other) return true;
+    if (this.constructor !== other.constructor) return false;
+    return sameParameters(this, other);
   }
+}
+
+/** Own properties that carry no behaviour and must not affect rule equality. */
+const EQUALITY_IGNORED_KEYS = new Set(['defined_at']);
+
+/** Shallow own-property comparison; reference-held values compare by identity. */
+function sameParameters(a: CustomRule, b: CustomRule): boolean {
+  const aKeys = Object.keys(a).filter((k) => !EQUALITY_IGNORED_KEYS.has(k));
+  const bKeys = Object.keys(b).filter((k) => !EQUALITY_IGNORED_KEYS.has(k));
+  if (aKeys.length !== bKeys.length) return false;
+
+  const left = a as unknown as Record<string, unknown>;
+  const right = b as unknown as Record<string, unknown>;
+  for (const key of aKeys) {
+    if (!Object.prototype.hasOwnProperty.call(b, key)) return false;
+    const av = left[key];
+    const bv = right[key];
+    if (av === bv) continue;
+    if (Number.isNaN(av) && Number.isNaN(bv)) continue;
+    return false;
+  }
+  return true;
 }
 
 // ─── Rule ────────────────────────────────────────────────────────────────────

@@ -1,5 +1,26 @@
 # Changelog
 
+## 3.5.0
+
+- **Rule deduplication is parameter-aware, so a rule class registered twice with
+  different arguments now really does run twice.** 3.4.0 claimed every instance
+  of a duplicated rule class executes; only half of that shipped.
+  `toposortRules` was taught to handle multiple instances, but `Rules.extend`
+  still dropped them one step earlier: `CustomRule.equals` compared by class
+  alone, so merging rebulks collapsed differently-parameterized instances before
+  toposort ever saw them. Measured on 3.4.0, two `TaggedRule("season")` /
+  `TaggedRule("episode")` instances produced one effective rule and only the
+  first fired — the same defect Python rebulk has in `__eq__`/`__hash__`
+  (Toilal/rebulk#92), which is what silently disabled guessit's
+  `RemoveLessSpecificSeasonEpisode("episode")` pass.
+
+  `equals` now requires the same class *and* the same own properties. Parameters
+  held by reference (closures, compiled regexes) compare by identity, so
+  distinct passes always survive; interchangeable instances — notably the
+  default `ConflictSolver` / `PrivateRemover` that every Rebulk registers, 31 of
+  each in guessit-js — still collapse to one, so execution cost is unchanged.
+  `defined_at` is excluded as debug-only metadata.
+
 ## 3.4.1
 
 - **Chain matching is no longer quadratic in the input length.** `Chain._match`

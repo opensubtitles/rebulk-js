@@ -292,3 +292,84 @@ describe('DefaultRules', () => {
     expect((matches.named('tags', null, 0) as Match).tags).toEqual(['other']);
   });
 });
+
+// ─── Rule equality / dedup on extend ────────────────────────────────────────
+
+/** Parameterized rule, mirroring guessit's RemoveLessSpecificSeasonEpisode. */
+class TaggedRule extends Rule {
+  constructor(private readonly tag: string) { super(); }
+  when(_matches: Matches, context: Context) {
+    (context.fired as string[]).push(this.tag);
+    return false;
+  }
+}
+
+class StatelessRule extends Rule {
+  when(_matches: Matches, _context: Context) { return false; }
+}
+
+describe('rule dedup', () => {
+  it('keeps differently-parameterized instances of the same class', () => {
+    const target = new Rules();
+    target.extend(new Rules(new TaggedRule('season')));
+    target.extend(new Rules(new TaggedRule('episode')));
+    expect(target.length).toBe(2);
+
+    const fired: string[] = [];
+    target.executeAllRules(new Matches([]), { fired });
+    expect(fired).toEqual(['season', 'episode']);
+  });
+
+  it('collapses interchangeable instances of the same class', () => {
+    const target = new Rules();
+    target.extend(new Rules(new StatelessRule()));
+    target.extend(new Rules(new StatelessRule()));
+    expect(target.length).toBe(1);
+  });
+
+  it('collapses instances carrying equal parameters', () => {
+    const target = new Rules();
+    target.extend(new Rules(new TaggedRule('season')));
+    target.extend(new Rules(new TaggedRule('season')));
+    expect(target.length).toBe(1);
+  });
+
+  it('never equates distinct classes', () => {
+    const target = new Rules();
+    target.extend(new Rules(new StatelessRule()));
+    target.extend(new Rules(new TaggedRule('season')));
+    expect(target.length).toBe(2);
+  });
+
+  it('ignores defined_at when comparing', () => {
+    const a = new StatelessRule();
+    const b = new StatelessRule();
+    (a as unknown as { defined_at: unknown }).defined_at = { filename: 'a.ts', lineno: 1 };
+    (b as unknown as { defined_at: unknown }).defined_at = { filename: 'b.ts', lineno: 2 };
+    expect(a.equals(b)).toBe(true);
+  });
+});
+
+describe('rebulk rule merging', () => {
+  it('runs both passes of a twice-registered rule class', async () => {
+    const { Rebulk } = await import('../src/rebulk.js');
+    const parent = new Rebulk();
+    parent.rebulk(new Rebulk().rules(new TaggedRule('season')));
+    parent.rebulk(new Rebulk().rules(new TaggedRule('episode')));
+
+    const fired: string[] = [];
+    parent.matches('warmup.mkv', { fired });
+    expect(fired).toEqual(['season', 'episode']);
+  });
+
+  it('still registers the default processors once', async () => {
+    const { Rebulk, ConflictSolver, PrivateRemover } = await import('../src/rebulk.js');
+    const parent = new Rebulk();
+    parent.rebulk(new Rebulk());
+    parent.rebulk(new Rebulk());
+
+    const effective = [...parent.effectiveRules({})];
+    expect(effective.filter((r) => r instanceof ConflictSolver).length).toBe(1);
+    expect(effective.filter((r) => r instanceof PrivateRemover).length).toBe(1);
+  });
+});
