@@ -18,7 +18,7 @@ rebulk-js provides a framework for building complex text parsers using composabl
 - **Zero dependencies**: fully self-contained
 - **TypeScript**: full type definitions included
 - **Dual format**: ESM and CommonJS builds
-- **146 tests**: full parity with the Python test suite
+- **183 tests**: the Python test suite plus the JS-specific engine cases
 
 ## Install
 
@@ -194,7 +194,7 @@ combined.rebulk(quality);
 
 ## Compatibility with Python rebulk
 
-This is a faithful port of [Python rebulk](https://github.com/Toilal/rebulk). All 144 Python tests are ported and passing (146 total including additional JS-specific tests).
+This is a faithful port of [Python rebulk](https://github.com/Toilal/rebulk). All 144 Python tests are ported and passing (183 total, the rest covering engine behaviour found while porting guessit).
 
 | Feature | Status |
 |---------|--------|
@@ -202,7 +202,7 @@ This is a faithful port of [Python rebulk](https://github.com/Toilal/rebulk). Al
 | RePattern | Full parity (uses ES2022 `d` flag for group indices) |
 | FunctionalPattern | Full parity |
 | Chain patterns | Full parity |
-| Rule engine | Full parity |
+| Rule engine | Parity, with one deliberate difference: rule equality compares class *and* parameters, so a class registered twice with different arguments runs twice (Toilal/rebulk#92 — Python 6.0.2 compares instance-registered rules by identity, earlier versions by class alone) |
 | Conflict resolution | Full parity |
 | Validators/formatters | Full parity |
 | Markers | Full parity |
